@@ -65,13 +65,6 @@ h1,h2{ margin:.2em 0; }
 .rules-body ul{ padding-left:18px; }
 .version{ color:var(--muted); font-size:12px; }
 
-/* ---- プライバシーゲート ---- */
-.gate{ flex:1; display:flex; align-items:center; justify-content:center; }
-.gate-inner{ text-align:center; padding:30px; }
-.gate-seat{ letter-spacing:3px; color:var(--gold); font-weight:800; margin-bottom:6px; }
-.gate-inner h2{ font-size:24px; }
-.gate-inner .btn{ margin-top:28px; }
-
 /* ---- テーブル ---- */
 .table{ flex:1; display:flex; flex-direction:column; gap:10px; }
 .opp-row, .me-row{ text-align:center; }
@@ -82,12 +75,25 @@ h1,h2{ margin:.2em 0; }
 
 .center{ text-align:center; padding:10px 0;
   border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.turn{ display:inline-block; font-size:13px; font-weight:800; color:#3a2c00;
+  background:linear-gradient(#e8c873,#cfa84f); padding:3px 14px; border-radius:999px; margin-bottom:8px; }
 .pot{ font-size:15px; color:var(--muted); }
 .pot b{ color:var(--gold); font-size:20px; }
 .street{ font-size:12px; color:var(--muted); margin-top:6px; }
 .board{ display:flex; gap:6px; justify-content:center; margin:8px 0 0; }
 
 .hole{ display:flex; gap:6px; justify-content:center; margin-top:6px; }
+
+/* ---- 手札の覗き見エリア（長押しで捲る） ---- */
+.peek{ margin-top:8px; padding:14px 10px 12px; border-radius:16px;
+  border:2px dashed rgba(232,200,115,.5); background:rgba(0,0,0,.18);
+  -webkit-touch-callout:none; touch-action:none; cursor:pointer;
+  transition:background .12s, border-color .12s; }
+.peek.peeking{ background:rgba(232,200,115,.12); border-color:var(--gold); border-style:solid; }
+.peek .hole{ margin-top:0; }
+.peek-hint{ margin-top:8px; font-size:12px; color:var(--muted); }
+.peek.peeking .peek-hint{ color:var(--gold); }
+.peek-eval{ margin-top:4px; font-size:15px; min-height:18px; }
 
 /* ---- カード ---- */
 .card{

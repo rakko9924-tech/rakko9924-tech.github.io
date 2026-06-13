@@ -79,7 +79,7 @@
 
     // プリフロップ。SBがコールしてもBBにオプションがあるので actedSinceRaise はBBを未行動扱い。
     H.actedSinceRaise = new Set();
-    renderPrivacyGate();
+    renderAction();
   }
 
   function postBlind(i, amount) {
@@ -191,7 +191,7 @@
       return;
     }
     H.toAct = next;
-    renderPrivacyGate();
+    renderAction();
   }
 
   function dealBoard(n) {
@@ -249,7 +249,7 @@
 
   function maybeSkipOrGate() {
     pushLog(`--- ${streetLabel(H.street)} ---`);
-    renderPrivacyGate();
+    renderAction();
   }
 
   function doShowdown() {
@@ -291,22 +291,6 @@
     return `<div class="card ${color}"><span class="r">${P.RANK_LABEL[c.r]}</span><span class="s">${P.SUIT_SYMBOL[c.s]}</span></div>`;
   }
 
-  // ---- 画面：プライバシーゲート ----
-  function renderPrivacyGate() {
-    const i = H.toAct;
-    const seatRot = (i === 1 && settings.rotateP2) ? 'rot180' : '';
-    $('#app').innerHTML = `
-      <div class="gate ${seatRot}">
-        <div class="gate-inner">
-          <div class="gate-seat">SEAT ${i + 1}</div>
-          <h2>${settings.names[i]} の番です</h2>
-          <p class="muted">相手に画面を見せないでください</p>
-          <button class="btn big primary" id="reveal">タップして手札を確認</button>
-        </div>
-      </div>`;
-    $('#reveal').onclick = renderAction;
-  }
-
   // ---- 画面：アクション ----
   function renderAction() {
     const i = H.toAct;
@@ -318,7 +302,7 @@
       H.board[k] ? cardHTML(H.board[k], true) : `<div class="card placeholder"></div>`
     ).join('');
 
-    const myEval = H.board.length >= 0 && H.board.length >= 3
+    const myEval = H.board.length >= 3
       ? P.evaluate7([...H.holes[i], ...H.board]).name
       : '';
 
@@ -331,6 +315,9 @@
     const maxTarget = H.bet[i] + G.stacks[i];
     const raiseWord = toCall === 0 ? 'ベット' : 'レイズ';
 
+    const faceUp = `${cardHTML(H.holes[i][0], true)}${cardHTML(H.holes[i][1], true)}`;
+    const faceDown = `${cardHTML(null, false)}${cardHTML(null, false)}`;
+
     $('#app').innerHTML = `
       <div class="table ${seatRot}">
         <div class="opp-row">
@@ -340,6 +327,7 @@
         </div>
 
         <div class="center">
+          <div class="turn">${settings.names[i]} の番</div>
           <div class="pot">POT <b>${H.pot}</b></div>
           <div class="board">${board}</div>
           <div class="street">${streetLabel(H.street)}</div>
@@ -347,8 +335,12 @@
 
         <div class="me-row">
           <div class="player-tag me">${settings.names[i]} ${i === H.button ? '🔘' : ''}</div>
-          <div class="hole big">${cardHTML(H.holes[i][0], true)}${cardHTML(H.holes[i][1], true)}</div>
-          <div class="stack">スタック ${G.stacks[i]}　${myEval ? '<span class="myhand">' + myEval + '</span>' : ''}</div>
+          <div class="peek" id="peek">
+            <div class="hole big" id="holeCards">${faceDown}</div>
+            <div class="peek-hint" id="peekHint">👈 左手で隠して、ここを長押しで手札を確認</div>
+            <div class="peek-eval myhand" id="peekEval" style="visibility:hidden">&nbsp;</div>
+          </div>
+          <div class="stack">スタック ${G.stacks[i]}</div>
         </div>
 
         <div class="actions">
@@ -376,6 +368,40 @@
           </div>
         </div>
       </div>`;
+
+    // 手札の覗き見（長押し＝トランプを捲る）。指を離すと自動で伏せる。
+    const peek = $('#peek');
+    const holeCards = $('#holeCards');
+    const peekHint = $('#peekHint');
+    const peekEval = $('#peekEval');
+    const reveal = () => {
+      holeCards.innerHTML = faceUp;
+      peek.classList.add('peeking');
+      if (peekHint) peekHint.textContent = '指を離すと伏せます';
+      if (myEval && peekEval) { peekEval.textContent = myEval; peekEval.style.visibility = 'visible'; }
+    };
+    const hide = () => {
+      holeCards.innerHTML = faceDown;
+      peek.classList.remove('peeking');
+      if (peekHint) peekHint.textContent = '👈 左手で隠して、ここを長押しで手札を確認';
+      if (peekEval) peekEval.style.visibility = 'hidden';
+    };
+    if (peek) {
+      const down = (e) => { e.preventDefault(); reveal(); };
+      const up = (e) => { e.preventDefault(); hide(); };
+      // Pointer Events（iOS Safari / Chrome 対応）。保険でタッチ/マウスも併用。
+      peek.addEventListener('pointerdown', down);
+      peek.addEventListener('pointerup', up);
+      peek.addEventListener('pointerleave', up);
+      peek.addEventListener('pointercancel', up);
+      peek.addEventListener('touchstart', down, { passive: false });
+      peek.addEventListener('touchend', up);
+      peek.addEventListener('touchcancel', up);
+      peek.addEventListener('mousedown', down);
+      peek.addEventListener('mouseup', up);
+      peek.addEventListener('mouseleave', up);
+      peek.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
 
     // アクションボタン
     document.querySelectorAll('.actions [data-act]').forEach((b) => {
@@ -568,7 +594,7 @@
   window.NLH = {
     _state: () => ({ G, H }),
     _setSettings: (s) => { settings = Object.assign({}, defaultSettings, s); },
-    newMatch, startHand, act, renderPrivacyGate, renderAction, renderResult, renderHome, showGameOver,
+    newMatch, startHand, act, renderAction, renderResult, renderHome, showGameOver,
     get G() { return G; }, get H() { return H; },
   };
 
