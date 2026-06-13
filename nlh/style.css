@@ -115,27 +115,37 @@ h1,h2{ margin:.2em 0; }
 .card.placeholder{ background:rgba(255,255,255,.06); box-shadow:none; border:1px dashed var(--line); }
 
 /* ---- アクション（各席の右側に縦並び） ---- */
-.actions{ display:flex; flex-direction:column; gap:8px; width:118px; flex:0 0 auto; }
+.action-col{ width:118px; flex:0 0 auto; }
+.actions{ display:flex; flex-direction:column; gap:8px; width:100%; }
 .actions .btn{ padding:12px 8px; font-size:14px; border-radius:11px; }
 .actions .btn .amt{ font-size:11px; }
 .actions.dim{ opacity:.4; }
 .btn[disabled]{ filter:grayscale(.4) brightness(.85); cursor:default; box-shadow:none; }
 .btn[disabled]:active{ transform:none; filter:grayscale(.4) brightness(.85); }
 
-/* ---- レイズパネル ---- */
-.raise-panel{ position:fixed; inset:0; background:rgba(0,0,0,.78);
-  display:flex; align-items:center; justify-content:center; z-index:50; }
-.raise-panel.hidden{ display:none; }
-.rp-inner{ background:#0e3a2a; border:1px solid var(--line); border-radius:18px;
-  padding:22px; width:min(420px,90vw); text-align:center; }
-.rp-title{ color:var(--muted); }
-.rp-value b{ font-size:34px; color:var(--gold); }
-#rpRange{ width:100%; margin:14px 0; }
-.rp-quick{ display:flex; gap:8px; margin-bottom:14px; }
-.rp-quick button{ flex:1; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
+/* ---- レイズUI（自分側の席内にインライン展開／GGPoker風） ---- */
+.betui{ display:none; flex-direction:column; gap:10px; width:100%;
+  padding:10px; background:rgba(0,0,0,.32); border:1px solid var(--line); border-radius:14px; }
+/* 手番側がレイズ中：その席の情報＋手札とボタンを隠し、ベットUIを全幅で表示 */
+.seat.raising .seat-main{ display:none; }
+.seat.raising .action-col{ width:100%; }
+.seat.raising .actions{ display:none; }
+.seat.raising .betui{ display:flex; }
+.bet-head{ display:flex; align-items:baseline; justify-content:space-between; }
+.bet-label{ color:var(--muted); font-size:13px; }
+.bet-head .bet-val{ font-size:28px; color:var(--gold); font-weight:800; }
+.bet-presets{ display:flex; gap:6px; }
+.chip{ flex:1; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
   background:#13503a; color:#fff; font-weight:700; font-size:13px; }
-.rp-buttons{ display:flex; gap:10px; }
-.rp-buttons .btn{ flex:1; }
+.chip.active{ background:var(--gold); color:#3a2c00; border-color:var(--gold); }
+.bet-slider-row{ display:flex; align-items:center; gap:10px; }
+.bet-range{ flex:1; height:32px; }
+.step{ width:46px; height:46px; flex:0 0 auto; border-radius:50%; border:1px solid var(--line);
+  background:#1c5a42; color:#fff; font-size:24px; font-weight:800; line-height:1; }
+.bet-confirm-row{ display:flex; gap:10px; }
+.bet-confirm-row .betcancel{ flex:0 0 96px; background:#33524a; }
+.bet-confirm-row .betconfirm{ flex:1; }
+.bet-confirm-row .bet-val{ font-size:18px; }
 
 /* ---- 結果 ---- */
 .result{ display:flex; flex-direction:column; gap:14px; text-align:center; }

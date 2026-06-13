@@ -304,11 +304,13 @@
 
     const minRaiseTarget = H.bet[opp] + Math.max(H.lastRaiseSize, settings.bigBlind);
     const maxTarget = H.bet[actor] + G.stacks[actor];
-    const raiseWord = toCall === 0 ? 'ベット' : 'レイズ';
 
     const faceDown = `${cardHTML(null, false)}${cardHTML(null, false)}`;
 
+    const initVal = Math.min(minRaiseTarget, maxTarget);
+
     // 各プレイヤーのアクション列（両者ぶん常に表示し、手番でない側は無効化）。
+    // 手番側のレイズUIは席内（＝自分側の半分）にインライン展開する（GGPoker風）。
     const seatActions = (p) => {
       const isActor = (p === actor);
       const tc = Math.max(0, H.bet[1 - p] - H.bet[p]);
@@ -318,12 +320,34 @@
       const callOrCheck = tc > 0
         ? `<button class="btn call" data-act="call" ${dis}>コール<span class="amt">${Math.min(tc, G.stacks[p])}</span></button>`
         : `<button class="btn check" data-act="check" ${dis}>チェック</button>`;
-      return `<div class="actions ${isActor ? 'live' : 'dim'}">
+      const buttons = `<div class="actions ${isActor ? 'live' : 'dim'}">
           <button class="btn fold" data-act="fold" ${dis}>フォールド</button>
           ${callOrCheck}
           ${cr ? `<button class="btn raise" ${isActor ? 'id="openRaise"' : ''} ${dis}>${rw}</button>` : ''}
           <button class="btn allin" data-act="allin" ${dis}>オールイン</button>
         </div>`;
+      // レイズ用インラインパネル（手番側のみ）。スライダー＋サイズボタン＋確定。
+      const betui = (isActor && cr) ? `
+        <div class="betui" data-min="${initVal}" data-max="${maxTarget}" data-step="${settings.smallBlind}">
+          <div class="bet-head"><span class="bet-label">${rw}額（合計）</span><b class="bet-val">${initVal}</b></div>
+          <div class="bet-presets">
+            <button class="chip" data-frac="min">最小</button>
+            <button class="chip" data-frac="0.5">½</button>
+            <button class="chip" data-frac="0.75">¾</button>
+            <button class="chip" data-frac="1">ポット</button>
+            <button class="chip" data-frac="max">オールイン</button>
+          </div>
+          <div class="bet-slider-row">
+            <button class="step" data-step="-1">−</button>
+            <input type="range" class="bet-range" min="${initVal}" max="${maxTarget}" step="${settings.smallBlind}" value="${initVal}">
+            <button class="step" data-step="1">＋</button>
+          </div>
+          <div class="bet-confirm-row">
+            <button class="btn betcancel" data-betcancel>✕ 戻る</button>
+            <button class="btn primary betconfirm" data-betconfirm>${rw} <b class="bet-val">${initVal}</b></button>
+          </div>
+        </div>` : '';
+      return `<div class="action-col">${buttons}${betui}</div>`;
     };
 
     // 1プレイヤー分の席：左に情報＋手札、右にアクション列。
@@ -344,8 +368,6 @@
         </div>`;
     };
 
-    const panelRot = (actor === 1 && settings.rotateP2) ? 'rot180' : '';
-
     $('#app').innerHTML = `
       <div class="table2">
         ${seatHTML(1)}
@@ -355,24 +377,6 @@
           <div class="street">${streetLabel(H.street)} ・ ${settings.names[actor]} の番</div>
         </div>
         ${seatHTML(0)}
-      </div>
-
-      <div class="raise-panel hidden ${panelRot}" id="raisePanel">
-        <div class="rp-inner">
-          <div class="rp-title">${raiseWord}額（合計）</div>
-          <div class="rp-value"><b id="rpVal">${Math.min(minRaiseTarget, maxTarget)}</b></div>
-          <input type="range" id="rpRange" min="${Math.min(minRaiseTarget, maxTarget)}" max="${maxTarget}" step="${settings.smallBlind}" value="${Math.min(minRaiseTarget, maxTarget)}">
-          <div class="rp-quick">
-            <button data-frac="0.5">½ポット</button>
-            <button data-frac="0.75">¾ポット</button>
-            <button data-frac="1">ポット</button>
-            <button data-frac="max">MAX</button>
-          </div>
-          <div class="rp-buttons">
-            <button class="btn" id="rpCancel">戻る</button>
-            <button class="btn primary" id="rpConfirm">決定</button>
-          </div>
-        </div>
       </div>`;
 
     // 各プレイヤーの手札を長押し（＝トランプを捲る）で確認。指を離すと自動で伏せる。
@@ -413,51 +417,65 @@
       peek.addEventListener('contextmenu', (e) => e.preventDefault());
     });
 
+    // レイズ用インラインパネル（自分側の席内で完結）。先に配線して all-in からも使えるようにする。
+    const openRaiseBtn = $('#openRaise');
+    let openRaising = null; // () => レイズUIをMAXで開く（all-in 用）
+    if (openRaiseBtn) {
+      const seat = openRaiseBtn.closest('.seat');
+      const betui = seat.querySelector('.betui');
+      const range = betui.querySelector('.bet-range');
+      const min = parseInt(betui.dataset.min, 10);
+      const max = parseInt(betui.dataset.max, 10);
+      const step = parseInt(betui.dataset.step, 10);
+      const incr = settings.bigBlind; // ＋／− はBB単位で調整
+      const valEls = betui.querySelectorAll('.bet-val');
+      const chips = betui.querySelectorAll('.chip');
+
+      const setVal = (v) => {
+        v = Math.round(v / step) * step;
+        v = Math.max(min, Math.min(max, v));
+        range.value = v;
+        valEls.forEach((e) => { e.textContent = v; });
+        // どのプリセットに一致するか軽くハイライト
+        chips.forEach((ch) => {
+          const t = presetTarget(ch.dataset.frac);
+          ch.classList.toggle('active', t === v);
+        });
+      };
+      const presetTarget = (frac) => {
+        if (frac === 'min') return min;
+        if (frac === 'max') return max;
+        const potAfterCall = H.pot + toCall;
+        const t = H.bet[opp] + Math.round(potAfterCall * parseFloat(frac));
+        return Math.max(min, Math.min(max, Math.round(t / step) * step));
+      };
+      const openPanel = (v) => { seat.classList.add('raising'); setVal(v); };
+
+      openRaiseBtn.onclick = () => openPanel(parseInt(range.value, 10));
+      openRaising = () => openPanel(max);
+      betui.querySelector('[data-betcancel]').onclick = () => seat.classList.remove('raising');
+      betui.querySelector('[data-betconfirm]').onclick = () =>
+        act(toCall === 0 ? 'bet' : 'raise', parseInt(range.value, 10));
+      range.oninput = () => setVal(parseInt(range.value, 10));
+      betui.querySelectorAll('.step').forEach((s) => {
+        s.onclick = () => setVal(parseInt(range.value, 10) + parseInt(s.dataset.step, 10) * incr);
+      });
+      chips.forEach((ch) => { ch.onclick = () => setVal(presetTarget(ch.dataset.frac)); });
+    }
+
     // アクションボタン（手番側 .live のみ有効）
     document.querySelectorAll('.actions.live [data-act]').forEach((b) => {
       b.onclick = () => {
         const a = b.getAttribute('data-act');
         if (a === 'allin') {
-          if (!confirm('オールインしますか？')) return;
-          act('allin');
+          // レイズ可能ならレイズUIをMAXで開いて確定させる（中央モーダルを使わず自分側で確認）。
+          if (openRaising) openRaising();
+          else act('allin');
         } else {
           act(a);
         }
       };
     });
-
-    const openRaise = $('#openRaise');
-    if (openRaise) {
-      const panel = $('#raisePanel');
-      const range = $('#rpRange');
-      const val = $('#rpVal');
-      const sync = () => { val.textContent = range.value; };
-      range.oninput = sync;
-      openRaise.onclick = () => panel.classList.remove('hidden');
-      $('#rpCancel').onclick = () => panel.classList.add('hidden');
-      $('#rpConfirm').onclick = () => {
-        const target = parseInt(range.value, 10);
-        panel.classList.add('hidden');
-        act(toCall === 0 ? 'bet' : 'raise', target);
-      };
-      document.querySelectorAll('.rp-quick button').forEach((qb) => {
-        qb.onclick = () => {
-          const frac = qb.getAttribute('data-frac');
-          let target;
-          if (frac === 'max') target = maxTarget;
-          else {
-            // ポット基準レイズ: コールしてからポットの割合分を上乗せ
-            const potAfterCall = H.pot + toCall;
-            const add = Math.round(potAfterCall * parseFloat(frac));
-            target = H.bet[opp] + add;
-          }
-          target = Math.max(Math.min(minRaiseTarget, maxTarget), Math.min(target, maxTarget));
-          // ステップに丸め
-          range.value = target;
-          sync();
-        };
-      });
-    }
   }
 
   // ---- 画面：結果（ショーダウン/フォールド） ----
