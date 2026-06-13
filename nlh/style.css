@@ -66,12 +66,12 @@ h1,h2{ margin:.2em 0; }
 .version{ color:var(--muted); font-size:12px; }
 
 /* ---- テーブル（固定・縦対称） ---- */
-/* 上席(プレイヤー2)・中央のボード・下席(プレイヤー1) を上下対称に配置する。 */
+/* 上席(プレイヤー2)・中央のボード・下席(プレイヤー1) を上下対称に配置する。
+   各席は「左に情報＋手札／右にアクション列」。上席は180°回転するので各自から見て右側になる。 */
 .table2{ flex:1; display:flex; flex-direction:column; }
-.seat{ text-align:center; display:flex; flex-direction:column; align-items:center; gap:6px; padding:6px 0; }
-.seat-1{ justify-content:flex-start; } /* 上席：画面端側にアクション */
-.seat-0{ justify-content:flex-end; }   /* 下席：画面端側にアクション */
-.seat.actor{ }
+.seat{ display:flex; flex-direction:row; align-items:center; justify-content:space-between;
+  gap:10px; padding:8px 2px; }
+.seat-main{ flex:1; text-align:center; min-width:0; }
 .player-tag{ font-weight:700; font-size:13px; color:var(--muted); }
 .player-tag.me{ color:var(--gold); }
 .bet-chip{ display:inline-block; background:rgba(232,200,115,.18); color:var(--gold);
@@ -79,25 +79,21 @@ h1,h2{ margin:.2em 0; }
 .stack{ font-size:13px; color:var(--muted); margin-top:4px; }
 .myhand{ color:var(--gold); font-weight:700; }
 
-.center{ flex:1; min-height:120px; text-align:center; padding:10px 0;
+.center{ flex:1; min-height:110px; text-align:center; padding:10px 0;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
   border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
 .pot{ font-size:15px; color:var(--muted); }
 .pot b{ color:var(--gold); font-size:20px; }
 .street{ font-size:12px; color:var(--muted); }
 .board{ display:flex; gap:6px; justify-content:center; }
-.actions-wait{ font-size:12px; color:var(--muted); padding:10px 0; opacity:.7; }
 
 .hole{ display:flex; gap:6px; justify-content:center; margin-top:6px; }
 
-/* ---- 手札の覗き見エリア（長押しで捲る） ---- */
-.peek{ margin-top:8px; padding:14px 10px 12px; border-radius:16px;
-  border:2px dashed rgba(232,200,115,.5); background:rgba(0,0,0,.18);
-  -webkit-touch-callout:none; touch-action:none; cursor:pointer;
-  transition:background .12s, border-color .12s; }
-.peek.peeking{ background:rgba(232,200,115,.12); border-color:var(--gold); border-style:solid; }
+/* ---- 手札の覗き見エリア（長押しで捲る・枠なし） ---- */
+.peek{ margin-top:6px; padding:4px 2px;
+  -webkit-touch-callout:none; touch-action:none; cursor:pointer; }
 .peek .hole{ margin-top:0; }
-.peek-hint{ margin-top:8px; font-size:12px; color:var(--muted); }
+.peek-hint{ margin-top:6px; font-size:11px; color:var(--muted); }
 .peek.peeking .peek-hint{ color:var(--gold); }
 .peek-eval{ margin-top:4px; font-size:15px; min-height:18px; }
 
@@ -118,10 +114,13 @@ h1,h2{ margin:.2em 0; }
   border:2px solid #fff; }
 .card.placeholder{ background:rgba(255,255,255,.06); box-shadow:none; border:1px dashed var(--line); }
 
-/* ---- アクション ---- */
-.actions{ width:100%; max-width:440px; display:grid; grid-template-columns:1fr 1fr; gap:10px;
-  padding-top:6px; }
-.actions .btn{ padding:16px 10px; }
+/* ---- アクション（各席の右側に縦並び） ---- */
+.actions{ display:flex; flex-direction:column; gap:8px; width:118px; flex:0 0 auto; }
+.actions .btn{ padding:12px 8px; font-size:14px; border-radius:11px; }
+.actions .btn .amt{ font-size:11px; }
+.actions.dim{ opacity:.4; }
+.btn[disabled]{ filter:grayscale(.4) brightness(.85); cursor:default; box-shadow:none; }
+.btn[disabled]:active{ transform:none; filter:grayscale(.4) brightness(.85); }
 
 /* ---- レイズパネル ---- */
 .raise-panel{ position:fixed; inset:0; background:rgba(0,0,0,.78);

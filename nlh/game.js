@@ -302,30 +302,35 @@
       H.board[k] ? cardHTML(H.board[k], true) : `<div class="card placeholder"></div>`
     ).join('');
 
-    const callBtn = toCall > 0
-      ? `<button class="btn call" data-act="call">コール<span class="amt">${Math.min(toCall, G.stacks[actor])}</span></button>`
-      : `<button class="btn check" data-act="check">チェック</button>`;
-
-    const canRaise = G.stacks[actor] > toCall && !H.allIn[opp];
     const minRaiseTarget = H.bet[opp] + Math.max(H.lastRaiseSize, settings.bigBlind);
     const maxTarget = H.bet[actor] + G.stacks[actor];
     const raiseWord = toCall === 0 ? 'ベット' : 'レイズ';
 
     const faceDown = `${cardHTML(null, false)}${cardHTML(null, false)}`;
 
-    // 1プレイヤー分の席（手札＝長押しで確認、手番ならアクション付き）
+    // 各プレイヤーのアクション列（両者ぶん常に表示し、手番でない側は無効化）。
+    const seatActions = (p) => {
+      const isActor = (p === actor);
+      const tc = Math.max(0, H.bet[1 - p] - H.bet[p]);
+      const cr = G.stacks[p] > tc && !H.allIn[1 - p];
+      const rw = tc === 0 ? 'ベット' : 'レイズ';
+      const dis = isActor ? '' : 'disabled';
+      const callOrCheck = tc > 0
+        ? `<button class="btn call" data-act="call" ${dis}>コール<span class="amt">${Math.min(tc, G.stacks[p])}</span></button>`
+        : `<button class="btn check" data-act="check" ${dis}>チェック</button>`;
+      return `<div class="actions ${isActor ? 'live' : 'dim'}">
+          <button class="btn fold" data-act="fold" ${dis}>フォールド</button>
+          ${callOrCheck}
+          ${cr ? `<button class="btn raise" ${isActor ? 'id="openRaise"' : ''} ${dis}>${rw}</button>` : ''}
+          <button class="btn allin" data-act="allin" ${dis}>オールイン</button>
+        </div>`;
+    };
+
+    // 1プレイヤー分の席：左に情報＋手札、右にアクション列。
     const seatHTML = (p) => {
       const isActor = (p === actor);
       const rot = (p === 1 && settings.rotateP2) ? 'rot180' : '';
       const betNow = H.bet[p] > 0 ? `<span class="bet-chip">ベット ${H.bet[p]}</span>` : '';
-      const actionsHTML = isActor ? `
-        <div class="actions">
-          <button class="btn fold" data-act="fold">フォールド</button>
-          ${callBtn}
-          ${canRaise ? `<button class="btn raise" id="openRaise">${raiseWord}</button>` : ''}
-          <button class="btn allin" data-act="allin">オールイン</button>
-        </div>` : `<div class="actions-wait">待機中…</div>`;
-      // 上席は「アクション→手札」、下席は「手札→アクション」で、中央のボードに対して対称に並べる
       const tag = `<div class="player-tag ${isActor ? 'me' : ''}">${settings.names[p]} ${p === H.button ? '🔘' : ''} ・ スタック ${G.stacks[p]} ${betNow}</div>`;
       const peekBlock = `
         <div class="peek" data-player="${p}">
@@ -333,10 +338,10 @@
           <div class="peek-hint">長押しで手札を確認</div>
           <div class="peek-eval myhand" style="visibility:hidden">&nbsp;</div>
         </div>`;
-      const inner = (p === 1)
-        ? `${actionsHTML}${peekBlock}${tag}`   // 上席：外側(画面端)にアクション、内側にカード
-        : `${tag}${peekBlock}${actionsHTML}`;  // 下席：内側にカード、外側にアクション
-      return `<div class="seat seat-${p} ${rot} ${isActor ? 'actor' : 'idle'}">${inner}</div>`;
+      return `<div class="seat seat-${p} ${rot} ${isActor ? 'actor' : 'idle'}">
+          <div class="seat-main">${tag}${peekBlock}</div>
+          ${seatActions(p)}
+        </div>`;
     };
 
     const panelRot = (actor === 1 && settings.rotateP2) ? 'rot180' : '';
@@ -408,8 +413,8 @@
       peek.addEventListener('contextmenu', (e) => e.preventDefault());
     });
 
-    // アクションボタン
-    document.querySelectorAll('.actions [data-act]').forEach((b) => {
+    // アクションボタン（手番側 .live のみ有効）
+    document.querySelectorAll('.actions.live [data-act]').forEach((b) => {
       b.onclick = () => {
         const a = b.getAttribute('data-act');
         if (a === 'allin') {
