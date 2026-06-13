@@ -115,17 +115,18 @@ function cmpScore(a, b) {
   return 0;
 }
 
-// 7枚から最強の5枚を選ぶ。{score, name, best:[5枚]} を返す。
+// 5〜7枚から最強の5枚を選ぶ。{score, name, best:[5枚]} を返す。
 function evaluate7(cards) {
-  const idx = [0, 1, 2, 3, 4, 5, 6];
+  const n = cards.length;
+  if (n < 5) throw new Error('evaluate needs at least 5 cards');
   let best = null;
   let bestCombo = null;
-  // C(7,5)=21 通り
-  for (let a = 0; a < 7; a++)
-    for (let b = a + 1; b < 7; b++)
-      for (let c = b + 1; c < 7; c++)
-        for (let d = c + 1; d < 7; d++)
-          for (let e = d + 1; e < 7; e++) {
+  // C(n,5) の全組み合わせ（n は最大7なので総当たりで十分）
+  for (let a = 0; a < n; a++)
+    for (let b = a + 1; b < n; b++)
+      for (let c = b + 1; c < n; c++)
+        for (let d = c + 1; d < n; d++)
+          for (let e = d + 1; e < n; e++) {
             const combo = [cards[a], cards[b], cards[c], cards[d], cards[e]];
             const sc = rank5(combo);
             if (!best || cmpScore(sc, best) > 0) {

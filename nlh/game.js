@@ -501,7 +501,7 @@
         <div class="logo">♠♥<br>HEADS-UP<br><span>NLH ポーカー</span></div>
         <p class="tag">オフライン・対面プレイ（正面通し）</p>
 
-        <div class="settings card">
+        <div class="settings panel">
           <label>プレイヤー1の名前
             <input id="n0" type="text" value="${escapeAttr(settings.names[0])}" maxlength="10">
           </label>
@@ -527,7 +527,7 @@
 
         <button class="btn big primary" id="start">ゲーム開始</button>
 
-        <details class="rules card">
+        <details class="rules panel">
           <summary>遊び方 / ルール</summary>
           <div class="rules-body">
             <p>1台のスマホを2人で挟み、向かい合って遊ぶヘッズアップ（1対1）の No Limit Texas Hold'em です。完全オフラインで動作します。</p>
@@ -568,7 +568,7 @@
   window.NLH = {
     _state: () => ({ G, H }),
     _setSettings: (s) => { settings = Object.assign({}, defaultSettings, s); },
-    newMatch, startHand, act, renderPrivacyGate,
+    newMatch, startHand, act, renderPrivacyGate, renderAction, renderResult, renderHome, showGameOver,
     get G() { return G; }, get H() { return H; },
   };
 
