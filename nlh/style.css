@@ -1,0 +1,146 @@
+:root{
+  --felt:#0f4a34;
+  --felt2:#093a29;
+  --line:rgba(255,255,255,.12);
+  --gold:#e8c873;
+  --txt:#f3f3ef;
+  --muted:#a9c4b6;
+  --red:#ce2029;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; height:100%; }
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  background:radial-gradient(120% 120% at 50% 0%, #14533b 0%, var(--felt) 45%, var(--felt2) 100%);
+  color:var(--txt);
+  min-height:100%;
+  -webkit-user-select:none; user-select:none;
+  overflow-x:hidden;
+}
+#app{ max-width:520px; margin:0 auto; min-height:100vh; min-height:100dvh;
+  padding:calc(12px + var(--safe-top)) 14px calc(14px + var(--safe-bot));
+  display:flex; flex-direction:column; }
+
+h1,h2{ margin:.2em 0; }
+.muted{ color:var(--muted); }
+.rot180{ transform:rotate(180deg); }
+
+/* ---- ボタン ---- */
+.btn{
+  appearance:none; border:none; border-radius:14px;
+  padding:14px 16px; font-size:16px; font-weight:700; color:#fff;
+  background:#33524a; cursor:pointer; transition:transform .05s, filter .1s;
+  box-shadow:0 2px 0 rgba(0,0,0,.25);
+}
+.btn:active{ transform:translateY(1px); filter:brightness(1.1); }
+.btn.big{ width:100%; padding:18px; font-size:19px; }
+.btn.primary{ background:linear-gradient(#e8c873,#cfa84f); color:#3a2c00; }
+.btn.fold{ background:#7a2b2b; }
+.btn.call{ background:#2f7a4a; }
+.btn.check{ background:#2f6a7a; }
+.btn.raise{ background:#3a5db0; }
+.btn.allin{ background:#9c4dcc; }
+.btn .amt{ display:block; font-size:12px; font-weight:600; opacity:.85; }
+
+/* ---- ホーム ---- */
+.home{ text-align:center; gap:14px; display:flex; flex-direction:column; }
+.logo{ font-size:30px; font-weight:900; line-height:1.1; letter-spacing:1px; margin-top:20px; }
+.logo span{ color:var(--gold); font-size:18px; }
+.tag{ color:var(--muted); margin-top:-6px; }
+.card.settings, .card{ background:rgba(0,0,0,.22); border:1px solid var(--line);
+  border-radius:16px; padding:16px; text-align:left; }
+.settings label{ display:block; font-size:13px; color:var(--muted); margin-bottom:12px; }
+.settings input[type=text], .settings input[type=number]{
+  width:100%; margin-top:5px; padding:11px 12px; font-size:16px; border-radius:10px;
+  border:1px solid var(--line); background:#0c2b20; color:#fff;
+}
+.settings .row2{ display:flex; gap:12px; }
+.settings .row2 label{ flex:1; }
+.settings label.check{ display:flex; align-items:flex-start; gap:8px; color:var(--txt); font-size:14px; }
+.settings label.check input{ width:20px; height:20px; margin-top:1px; }
+.rules summary, .log summary{ cursor:pointer; font-weight:700; }
+.rules-body{ color:var(--muted); font-size:14px; line-height:1.7; }
+.rules-body ul{ padding-left:18px; }
+.version{ color:var(--muted); font-size:12px; }
+
+/* ---- プライバシーゲート ---- */
+.gate{ flex:1; display:flex; align-items:center; justify-content:center; }
+.gate-inner{ text-align:center; padding:30px; }
+.gate-seat{ letter-spacing:3px; color:var(--gold); font-weight:800; margin-bottom:6px; }
+.gate-inner h2{ font-size:24px; }
+.gate-inner .btn{ margin-top:28px; }
+
+/* ---- テーブル ---- */
+.table{ flex:1; display:flex; flex-direction:column; gap:10px; }
+.opp-row, .me-row{ text-align:center; }
+.player-tag{ font-weight:700; font-size:14px; color:var(--muted); }
+.player-tag.me{ color:var(--gold); }
+.stack{ font-size:13px; color:var(--muted); margin-top:4px; }
+.myhand{ color:var(--gold); font-weight:700; }
+
+.center{ text-align:center; padding:10px 0;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.pot{ font-size:15px; color:var(--muted); }
+.pot b{ color:var(--gold); font-size:20px; }
+.street{ font-size:12px; color:var(--muted); margin-top:6px; }
+.board{ display:flex; gap:6px; justify-content:center; margin:8px 0 0; }
+
+.hole{ display:flex; gap:6px; justify-content:center; margin-top:6px; }
+
+/* ---- カード ---- */
+.card{
+  width:46px; height:64px; border-radius:8px; background:#fff; color:#111;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-weight:800; box-shadow:0 2px 5px rgba(0,0,0,.35); position:relative;
+}
+.card .r{ font-size:20px; line-height:1; }
+.card .s{ font-size:18px; line-height:1; }
+.card.red{ color:var(--red); }
+.card.black{ color:#111; }
+.hole.big .card{ width:60px; height:84px; }
+.hole.big .card .r{ font-size:26px; }
+.hole.big .card .s{ font-size:24px; }
+.card.back{ background:repeating-linear-gradient(45deg,#b22,#b22 6px,#901 6px,#901 12px);
+  border:2px solid #fff; }
+.card.placeholder{ background:rgba(255,255,255,.06); box-shadow:none; border:1px dashed var(--line); }
+
+/* ---- アクション ---- */
+.actions{ margin-top:auto; display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  padding-top:12px; }
+.actions .btn{ padding:18px 10px; }
+
+/* ---- レイズパネル ---- */
+.raise-panel{ position:fixed; inset:0; background:rgba(0,0,0,.78);
+  display:flex; align-items:center; justify-content:center; z-index:50; }
+.raise-panel.hidden{ display:none; }
+.rp-inner{ background:#0e3a2a; border:1px solid var(--line); border-radius:18px;
+  padding:22px; width:min(420px,90vw); text-align:center; }
+.rp-title{ color:var(--muted); }
+.rp-value b{ font-size:34px; color:var(--gold); }
+#rpRange{ width:100%; margin:14px 0; }
+.rp-quick{ display:flex; gap:8px; margin-bottom:14px; }
+.rp-quick button{ flex:1; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
+  background:#13503a; color:#fff; font-weight:700; font-size:13px; }
+.rp-buttons{ display:flex; gap:10px; }
+.rp-buttons .btn{ flex:1; }
+
+/* ---- 結果 ---- */
+.result{ display:flex; flex-direction:column; gap:14px; text-align:center; }
+.res-summary{ font-size:18px; font-weight:700; }
+.showdown-row{ display:flex; gap:14px; justify-content:center; }
+.sd-player{ flex:1; background:rgba(0,0,0,.2); border:1px solid var(--line);
+  border-radius:14px; padding:12px 6px; }
+.sd-player .hole{ margin:8px 0; }
+.log{ text-align:left; font-size:12px; color:var(--muted); }
+.log div div{ padding:2px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+
+/* ---- ゲームオーバー ---- */
+.gameover{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:14px; }
+.gameover h1{ font-size:38px; }
+.big-win{ font-size:24px; color:var(--gold); font-weight:800; }
+.gameover .btn{ margin-top:20px; width:min(360px,80vw); }
+
+.hidden{ display:none !important; }
