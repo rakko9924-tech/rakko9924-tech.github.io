@@ -16,6 +16,7 @@
     bigBlind: 200,
     ante: 200,           // BBアンティ（BBプレイヤーが支払う）
     rotateP2: true,      // 席2の画面を180°回転
+    sound: true,         // 効果音（無料）
     // 課金で解放される設定（解放されていない間は既定値に固定）
     bbDisplay: false,    // 金額をBB表示
     anteOff: false,      // アンティ無し
@@ -33,6 +34,11 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
   let settings = loadSettings();
+
+  // 効果音（sound.js）。設定OFFや非対応環境では何もしない。
+  function sfx(name) {
+    if (settings.sound && window.SFX) window.SFX.play(name);
+  }
 
   // ---- 課金（端末内に解放状態を保存）----
   // 注: PWA版では実決済(StoreKit等)は接続できないため、購入＝端末内で解放する雛形。
@@ -252,6 +258,7 @@
 
     if (type === 'fold') {
       H.folded[i] = true;
+      sfx('fold');
       pushLog(`${settings.names[i]} がフォールド。`);
       endHandByFold(1 - i);
       return;
@@ -259,6 +266,7 @@
 
     if (type === 'check') {
       if (toCall !== 0) return; // 不正
+      sfx('check');
       pushLog(`${settings.names[i]} がチェック。`);
       H.actedSinceRaise.add(i);
     }
@@ -270,6 +278,7 @@
       H.committed[i] += pay;
       H.pot += pay;
       if (G.stacks[i] === 0) H.allIn[i] = true;
+      sfx(G.stacks[i] === 0 ? 'allin' : 'chip');
       pushLog(`${settings.names[i]} がコール (${pay})。`);
       H.actedSinceRaise.add(i);
     }
@@ -288,6 +297,7 @@
       const raiseSize = target - H.bet[1 - i];
       if (raiseSize > 0) H.lastRaiseSize = Math.max(H.lastRaiseSize, raiseSize);
       if (G.stacks[i] === 0) H.allIn[i] = true;
+      sfx(H.allIn[i] ? 'allin' : 'chips');
       const word = toCall === 0 ? 'ベット' : 'レイズ';
       pushLog(`${settings.names[i]} が${word} ${target}${H.allIn[i] ? ' (オールイン)' : ''}。`);
       // レイズが入ったので相手は再び行動が必要
@@ -301,6 +311,7 @@
   function endHandByFold(winner) {
     H.finished = true;
     G.stacks[winner] += H.pot;
+    sfx('win');
     pushLog(`${settings.names[winner]} が ${H.pot} を獲得（相手フォールド）。`);
     H.result = { type: 'fold', winner, pot: H.pot };
     H.street = 'showdown';
@@ -345,6 +356,7 @@
 
     if (needRunout) {
       // 残りカードを全部配ってショーダウン
+      sfx('deal');
       while (H.board.length < 5) {
         if (H.board.length === 0) dealBoard(3);
         else dealBoard(1);
@@ -376,6 +388,7 @@
   }
 
   function maybeSkipOrGate() {
+    sfx('deal');
     pushLog(`--- ${streetLabel(H.street)} ---`);
     renderAction();
   }
@@ -405,6 +418,7 @@
       pushLog(`${settings.names[winner]} が ${H.pot} を獲得（${winner === 0 ? e0.name : e1.name}）。`);
     }
     H.result = { type: 'showdown', winner, pot: H.pot, e0, e1 };
+    sfx('win');
     renderResult();
   }
 
@@ -523,6 +537,7 @@
         peek.classList.add('peeking');
         hintEl.textContent = '指を離すと伏せます';
         if (evName) { evalEl.textContent = evName; evalEl.style.visibility = 'visible'; }
+        sfx('flip');
       };
       const hide = () => {
         holeEl.innerHTML = down;
@@ -714,6 +729,10 @@
               <input id="n1" type="text" value="${escapeAttr(settings.names[1])}" maxlength="10">
             </label>
           </div>
+          <label class="check">
+            <input id="snd" type="checkbox" ${settings.sound ? 'checked' : ''}>
+            <span class="pt-label">効果音</span>
+          </label>
           <div class="panel-title" style="margin-top:6px">設定（課金で解放）</div>
           <label class="${stackEditable ? '' : 'locked'}" ${stackEditable ? '' : 'data-tostore="edit_stack"'}>
             <span class="pt-label">開始スタック ${stackEditable ? '' : `<span class="lock">🔒 ${yen(PRODUCTS.edit_stack.price)}</span>`}</span>
@@ -752,6 +771,9 @@
       settings.names[0] = ($('#n0').value || 'プレイヤー1').trim();
       settings.names[1] = ($('#n1').value || 'プレイヤー2').trim();
       settings.rotateP2 = true; // 常に回転（対面で各自が正位置に）
+      settings.sound = $('#snd').checked;
+      if (window.SFX) window.SFX.setEnabled(settings.sound);
+      sfx('click');
       if (stackEditable) settings.startStack = clampInt($('#ss').value, 200, 100000000, 20000);
       settings.bbDisplay = isUnlocked('bb_display') ? $('#bbd').checked : false;
       settings.anteOff = isUnlocked('no_ante') ? $('#antoff').checked : false;
@@ -830,6 +852,7 @@
   };
 
   // ---- 起動 ----
+  if (window.SFX) window.SFX.setEnabled(settings.sound);
   window.addEventListener('DOMContentLoaded', renderHome);
 
   // Service Worker 登録（オフライン化）

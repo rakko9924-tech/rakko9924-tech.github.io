@@ -1,0 +1,8 @@
+{
+  "appId": "tech.rakko9924.nlh",
+  "appName": "Heads-Up NLH",
+  "webDir": "nlh",
+  "ios": {
+    "contentInset": "always"
+  }
+}

@@ -1,11 +1,13 @@
 /* sw.js — オフライン用 Service Worker。
    初回アクセス時に必要ファイルをキャッシュし、以後はネットワーク無しでも起動可能にする。 */
-const CACHE = 'nlh-headsup-v1';
+const CACHE = 'nlh-headsup-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './poker.js',
+  './sound.js',
+  './iap.js',
   './game.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
