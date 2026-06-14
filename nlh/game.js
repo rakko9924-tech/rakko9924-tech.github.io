@@ -648,7 +648,7 @@
       <div class="result">
         <h2>結果</h2>
         <div class="res-summary">${summary}</div>
-        <div class="board center">${board}</div>
+        <div class="board result-board">${board}</div>
         <div class="showdown-row">
           <div class="sd-player">
             <div class="player-tag">${settings.names[0]}</div>

@@ -181,6 +181,7 @@ h1,h2{ margin:.2em 0; }
 
 /* ---- 結果 ---- */
 .result{ display:flex; flex-direction:column; gap:14px; text-align:center; }
+.result-board{ flex-wrap:wrap; }
 .res-summary{ font-size:18px; font-weight:700; }
 .showdown-row{ display:flex; gap:14px; justify-content:center; }
 .sd-player{ flex:1; background:rgba(0,0,0,.2); border:1px solid var(--line);
