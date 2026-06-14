@@ -8,13 +8,18 @@
   const $ = (sel) => document.querySelector(sel);
 
   // ---- 設定の保存（端末内のみ） ----
-  const SETTINGS_KEY = 'nlh_settings_v1';
+  const SETTINGS_KEY = 'nlh_settings_v2';
   const defaultSettings = {
     names: ['プレイヤー1', 'プレイヤー2'],
-    startStack: 1000,
-    smallBlind: 10,
-    bigBlind: 20,
-    rotateP2: true, // 席2の画面を180°回転
+    startStack: 20000,   // 100BB（@ BB200）
+    smallBlind: 100,
+    bigBlind: 200,
+    ante: 200,           // BBアンティ（BBプレイヤーが支払う）
+    rotateP2: true,      // 席2の画面を180°回転
+    // 課金で解放される設定（解放されていない間は既定値に固定）
+    bbDisplay: false,    // 金額をBB表示
+    anteOff: false,      // アンティ無し
+    tournament: false,   // トーナメントモード（ブラインド上昇）
   };
   function loadSettings() {
     try {
@@ -27,8 +32,80 @@
   function saveSettings(s) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
-
   let settings = loadSettings();
+
+  // ---- 課金（端末内に解放状態を保存）----
+  // 注: PWA版では実決済(StoreKit等)は接続できないため、購入＝端末内で解放する雛形。
+  //     実アプリ化の際にここを各ストアの課金APIに差し替える。
+  const UNLOCK_KEY = 'nlh_unlocks_v1';
+  const PRODUCTS = {
+    bb_display: { name: 'BB表示', price: 500, desc: 'スタックやポットをBB（ビッグブラインド）単位で表示' },
+    edit_stack: { name: '初期スタック編集', price: 500, desc: '開始時のチップ量を自由に設定' },
+    tournament: { name: 'トーナメントモード', price: 1000, desc: 'ハンドが進むごとにブラインド／アンティが上昇' },
+    no_ante: { name: 'ante無しモード', price: 300, desc: 'アンティ無し（100-200のみ）で対戦' },
+  };
+  const BUNDLE_PRICE = 1500;
+  function loadUnlocks() {
+    try { return Object.assign({}, JSON.parse(localStorage.getItem(UNLOCK_KEY)) || {}); }
+    catch (e) { return {}; }
+  }
+  let unlocks = loadUnlocks();
+  function isUnlocked(key) { return !!unlocks[key]; }
+  function allUnlocked() { return Object.keys(PRODUCTS).every((k) => isUnlocked(k)); }
+  function purchase(key) { unlocks[key] = true; localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
+  function purchaseBundle() { Object.keys(PRODUCTS).forEach((k) => { unlocks[k] = true; }); localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
+  const yen = (n) => '¥' + n.toLocaleString('en-US');
+
+  // ---- 現在のブラインド／アンティ（トーナメントなら上昇） ----
+  // トーナメントのブラインド表（SB, BB, ante）。一定ハンドごとにレベルが上がる。
+  const TOURNEY_LEVELS = [
+    { sb: 100, bb: 200, ante: 200 },
+    { sb: 150, bb: 300, ante: 300 },
+    { sb: 200, bb: 400, ante: 400 },
+    { sb: 300, bb: 600, ante: 600 },
+    { sb: 500, bb: 1000, ante: 1000 },
+    { sb: 800, bb: 1600, ante: 1600 },
+    { sb: 1200, bb: 2400, ante: 2400 },
+    { sb: 2000, bb: 4000, ante: 4000 },
+    { sb: 3000, bb: 6000, ante: 6000 },
+    { sb: 5000, bb: 10000, ante: 10000 },
+  ];
+  const HANDS_PER_LEVEL = 8;
+  function tourneyLevel() {
+    const lv = Math.floor(((G ? G.handNo : 1) - 1) / HANDS_PER_LEVEL);
+    return Math.max(0, Math.min(TOURNEY_LEVELS.length - 1, lv));
+  }
+  function currentBlinds() {
+    if (settings.tournament && isUnlocked('tournament')) {
+      return TOURNEY_LEVELS[tourneyLevel()];
+    }
+    const ante = (settings.anteOff && isUnlocked('no_ante')) ? 0 : settings.ante;
+    return { sb: settings.smallBlind, bb: settings.bigBlind, ante };
+  }
+
+  // 現在のブラインド表示（トーナメントならレベルと次レベルまでのハンド数も）。
+  function blindsLabel() {
+    const b = (H && H.blinds) ? H.blinds : currentBlinds();
+    const ante = b.ante > 0 ? ` (ante ${b.ante.toLocaleString('en-US')})` : '';
+    let base = `${b.sb.toLocaleString('en-US')}-${b.bb.toLocaleString('en-US')}${ante}`;
+    if (settings.tournament && isUnlocked('tournament')) {
+      const lv = tourneyLevel();
+      const handsLeft = HANDS_PER_LEVEL - (((G ? G.handNo : 1) - 1) % HANDS_PER_LEVEL);
+      const next = lv < TOURNEY_LEVELS.length - 1 ? `・あと${handsLeft}ハンドで上昇` : '・最終レベル';
+      base = `🏆Lv.${lv + 1}　${base}${next}`;
+    }
+    return base;
+  }
+
+  // 金額の表示整形（BB表示が解放＆ONなら BB 単位）。
+  function fmt(n) {
+    if (settings.bbDisplay && isUnlocked('bb_display')) {
+      const bb = currentBlinds().bb || 1;
+      const v = Math.round((n / bb) * 10) / 10;
+      return v + 'BB';
+    }
+    return n.toLocaleString('en-US');
+  }
 
   // ---- ゲーム状態 ----
   let G = null; // 試合全体（スタック等）
@@ -51,6 +128,7 @@
     const deck = P.shuffle(P.makeDeck());
     const sb = G.button; // ヘッズアップではボタンがSB、先にアクション（プリフロップ）
     const bb = 1 - sb;
+    const blinds = currentBlinds();
 
     H = {
       deck,
@@ -59,10 +137,11 @@
       street: 'preflop', // preflop|flop|turn|river|showdown
       pot: 0,
       bet: [0, 0], // このストリートで投入した額
-      committed: [0, 0], // このハンドで投入した総額
+      committed: [0, 0], // このハンドで投入した総額（アンティ等のデッドマネーは含めない）
       sb, bb,
+      blinds,
       toAct: sb, // プリフロップはSB(ボタン)から
-      lastRaiseSize: settings.bigBlind,
+      lastRaiseSize: blinds.bb,
       lastAggressor: bb, // プリフロップのBBはオプションを持つ
       actedSinceRaise: new Set(),
       folded: [false, false],
@@ -71,11 +150,14 @@
       log: [],
     };
 
+    // アンティ（BBアンティ：BBプレイヤーがポットに支払う。ベット額には含めない＝デッドマネー）
+    if (blinds.ante > 0) postAnte(bb, blinds.ante);
     // ブラインド投入
-    postBlind(sb, settings.smallBlind);
-    postBlind(bb, settings.bigBlind);
-    H.lastRaiseSize = settings.bigBlind;
-    pushLog(`#${G.handNo} 開始。${settings.names[sb]} がSB ${settings.smallBlind}、${settings.names[bb]} がBB ${settings.bigBlind} を投入。`);
+    postBlind(sb, blinds.sb);
+    postBlind(bb, blinds.bb);
+    H.lastRaiseSize = blinds.bb;
+    const anteMsg = blinds.ante > 0 ? `、アンティ ${blinds.ante}` : '';
+    pushLog(`#${G.handNo} 開始。${settings.names[sb]} がSB ${blinds.sb}、${settings.names[bb]} がBB ${blinds.bb}${anteMsg} を投入。`);
 
     // プリフロップ。SBがコールしてもBBにオプションがあるので actedSinceRaise はBBを未行動扱い。
     H.actedSinceRaise = new Set();
@@ -87,6 +169,14 @@
     G.stacks[i] -= pay;
     H.bet[i] += pay;
     H.committed[i] += pay;
+    H.pot += pay;
+    if (G.stacks[i] === 0) H.allIn[i] = true;
+  }
+
+  // アンティはポットに入るがベット額・committed には含めない（未コール返金の対象外）。
+  function postAnte(i, amount) {
+    const pay = Math.min(amount, G.stacks[i]);
+    G.stacks[i] -= pay;
     H.pot += pay;
     if (G.stacks[i] === 0) H.allIn[i] = true;
   }
@@ -201,7 +291,7 @@
   function resetStreetBets() {
     H.bet = [0, 0];
     H.actedSinceRaise = new Set();
-    H.lastRaiseSize = settings.bigBlind;
+    H.lastRaiseSize = H.blinds.bb;
     // ポストフロップはBB(=非ボタン)から
     H.toAct = H.bb;
     // 行動不能な側はスキップ
@@ -302,7 +392,7 @@
       H.board[k] ? cardHTML(H.board[k], true) : `<div class="card placeholder"></div>`
     ).join('');
 
-    const minRaiseTarget = H.bet[opp] + Math.max(H.lastRaiseSize, settings.bigBlind);
+    const minRaiseTarget = H.bet[opp] + Math.max(H.lastRaiseSize, H.blinds.bb);
     const maxTarget = H.bet[actor] + G.stacks[actor];
 
     const faceDown = `${cardHTML(null, false)}${cardHTML(null, false)}`;
@@ -318,7 +408,7 @@
       const rw = tc === 0 ? 'ベット' : 'レイズ';
       const dis = isActor ? '' : 'disabled';
       const callOrCheck = tc > 0
-        ? `<button class="btn call" data-act="call" ${dis}>コール<span class="amt">${Math.min(tc, G.stacks[p])}</span></button>`
+        ? `<button class="btn call" data-act="call" ${dis}>コール<span class="amt">${fmt(Math.min(tc, G.stacks[p]))}</span></button>`
         : `<button class="btn check" data-act="check" ${dis}>チェック</button>`;
       const buttons = `<div class="actions ${isActor ? 'live' : 'dim'}">
           <button class="btn fold" data-act="fold" ${dis}>フォールド</button>
@@ -328,8 +418,8 @@
         </div>`;
       // レイズ用インラインパネル（手番側のみ）。スライダー＋サイズボタン＋確定。
       const betui = (isActor && cr) ? `
-        <div class="betui" data-min="${initVal}" data-max="${maxTarget}" data-step="${settings.smallBlind}">
-          <div class="bet-head"><span class="bet-label">${rw}額（合計）</span><b class="bet-val">${initVal}</b></div>
+        <div class="betui" data-min="${initVal}" data-max="${maxTarget}" data-step="${H.blinds.sb}">
+          <div class="bet-head"><span class="bet-label">${rw}額（合計）</span><b class="bet-val">${fmt(initVal)}</b></div>
           <div class="bet-presets">
             <button class="chip" data-frac="min">最小</button>
             <button class="chip" data-frac="0.5">½</button>
@@ -339,12 +429,12 @@
           </div>
           <div class="bet-slider-row">
             <button class="step" data-step="-1">−</button>
-            <input type="range" class="bet-range" min="${initVal}" max="${maxTarget}" step="${settings.smallBlind}" value="${initVal}">
+            <input type="range" class="bet-range" min="${initVal}" max="${maxTarget}" step="${H.blinds.sb}" value="${initVal}">
             <button class="step" data-step="1">＋</button>
           </div>
           <div class="bet-confirm-row">
             <button class="btn betcancel" data-betcancel>✕ 戻る</button>
-            <button class="btn primary betconfirm" data-betconfirm>${rw} <b class="bet-val">${initVal}</b></button>
+            <button class="btn primary betconfirm" data-betconfirm>${rw} <b class="bet-val">${fmt(initVal)}</b></button>
           </div>
         </div>` : '';
       return `<div class="action-col">${buttons}${betui}</div>`;
@@ -354,8 +444,8 @@
     const seatHTML = (p) => {
       const isActor = (p === actor);
       const rot = (p === 1 && settings.rotateP2) ? 'rot180' : '';
-      const betNow = H.bet[p] > 0 ? `<span class="bet-chip">ベット ${H.bet[p]}</span>` : '';
-      const tag = `<div class="player-tag ${isActor ? 'me' : ''}">${settings.names[p]} ${p === H.button ? '🔘' : ''} ・ スタック ${G.stacks[p]} ${betNow}</div>`;
+      const betNow = H.bet[p] > 0 ? `<span class="bet-chip">ベット ${fmt(H.bet[p])}</span>` : '';
+      const tag = `<div class="player-tag ${isActor ? 'me' : ''}">${settings.names[p]} ${p === H.button ? '🔘' : ''} ・ スタック ${fmt(G.stacks[p])} ${betNow}</div>`;
       const peekBlock = `
         <div class="peek" data-player="${p}">
           <div class="hole big">${faceDown}</div>
@@ -372,7 +462,8 @@
       <div class="table2">
         ${seatHTML(1)}
         <div class="center">
-          <div class="pot">POT <b>${H.pot}</b></div>
+          <div class="blinds-line">${blindsLabel()}</div>
+          <div class="pot">POT <b>${fmt(H.pot)}</b></div>
           <div class="board">${board}</div>
           <div class="street">${streetLabel(H.street)} ・ ${settings.names[actor]} の番</div>
         </div>
@@ -427,7 +518,7 @@
       const min = parseInt(betui.dataset.min, 10);
       const max = parseInt(betui.dataset.max, 10);
       const step = parseInt(betui.dataset.step, 10);
-      const incr = settings.bigBlind; // ＋／− はBB単位で調整
+      const incr = H.blinds.bb; // ＋／− はBB単位で調整
       const valEls = betui.querySelectorAll('.bet-val');
       const chips = betui.querySelectorAll('.chip');
 
@@ -435,7 +526,7 @@
         v = Math.round(v / step) * step;
         v = Math.max(min, Math.min(max, v));
         range.value = v;
-        valEls.forEach((e) => { e.textContent = v; });
+        valEls.forEach((e) => { e.textContent = fmt(v); });
         // どのプリセットに一致するか軽くハイライト
         chips.forEach((ch) => {
           const t = presetTarget(ch.dataset.frac);
@@ -489,13 +580,13 @@
     if (r.type === 'showdown') {
       p0Cards = H.holes[0].map((c) => cardHTML(c, true)).join('');
       p1Cards = H.holes[1].map((c) => cardHTML(c, true)).join('');
-      if (r.winner === -1) summary = `引き分け（スプリットポット ${r.pot}）`;
-      else summary = `${settings.names[r.winner]} の勝ち　<span class="myhand">${r.winner === 0 ? r.e0.name : r.e1.name}</span>　+${r.pot}`;
+      if (r.winner === -1) summary = `引き分け（スプリットポット ${fmt(r.pot)}）`;
+      else summary = `${settings.names[r.winner]} の勝ち　<span class="myhand">${r.winner === 0 ? r.e0.name : r.e1.name}</span>　+${fmt(r.pot)}`;
     } else {
       // フォールド時は手札を伏せたまま
       p0Cards = H.holes[0].map(() => cardHTML(null, false)).join('');
       p1Cards = H.holes[1].map(() => cardHTML(null, false)).join('');
-      summary = `${settings.names[r.winner]} の勝ち（相手フォールド）　+${r.pot}`;
+      summary = `${settings.names[r.winner]} の勝ち（相手フォールド）　+${fmt(r.pot)}`;
     }
 
     const over = (G.stacks[0] <= 0 || G.stacks[1] <= 0);
@@ -509,13 +600,13 @@
           <div class="sd-player">
             <div class="player-tag">${settings.names[0]}</div>
             <div class="hole">${p0Cards}</div>
-            <div class="stack">スタック ${G.stacks[0]}</div>
+            <div class="stack">スタック ${fmt(G.stacks[0])}</div>
             ${r.type === 'showdown' && r.e0 ? `<div class="myhand">${r.e0.name}</div>` : ''}
           </div>
           <div class="sd-player">
             <div class="player-tag">${settings.names[1]}</div>
             <div class="hole">${p1Cards}</div>
-            <div class="stack">スタック ${G.stacks[1]}</div>
+            <div class="stack">スタック ${fmt(G.stacks[1])}</div>
             ${r.type === 'showdown' && r.e1 ? `<div class="myhand">${r.e1.name}</div>` : ''}
           </div>
         </div>
@@ -542,7 +633,7 @@
       <div class="gameover">
         <h1>🏆 ゲーム終了</h1>
         <p class="big-win">${settings.names[winner]} の勝利！</p>
-        <p>${settings.names[0]}: ${G.stacks[0]}　/　${settings.names[1]}: ${G.stacks[1]}</p>
+        <p>${settings.names[0]}: ${fmt(G.stacks[0])}　/　${settings.names[1]}: ${fmt(G.stacks[1])}</p>
         <button class="btn big primary" id="restart">もう一度遊ぶ</button>
       </div>`;
     $('#restart').onclick = renderHome;
@@ -550,33 +641,54 @@
 
   // ---- 画面：ホーム/設定 ----
   function renderHome() {
+    const b = currentBlinds();
+    const stackEditable = isUnlocked('edit_stack');
+    const bbCount = Math.round((settings.startStack / b.bb) * 10) / 10;
+    const ante = b.ante > 0 ? ` (ante ${b.ante.toLocaleString('en-US')})` : '';
+
+    // 課金トグル行（未解放なら無効化＋🔒価格、行タップでストアへ）
+    const paidToggle = (key, settingKey, label, sub) => {
+      const unlocked = isUnlocked(key);
+      return `<label class="check paid ${unlocked ? '' : 'locked'}" ${unlocked ? '' : `data-tostore="${key}"`}>
+          <input type="checkbox" id="${settingKey}" ${settings[settingKey] ? 'checked' : ''} ${unlocked ? '' : 'disabled'}>
+          <span class="pt-label">${label}${sub ? `<span class="pt-sub">${sub}</span>` : ''}</span>
+          ${unlocked ? '' : `<span class="lock">🔒 ${yen(PRODUCTS[key].price)}</span>`}
+        </label>`;
+    };
+
     $('#app').innerHTML = `
       <div class="home">
         <div class="logo">♠♥<br>HEADS-UP<br><span>NLH ポーカー</span></div>
         <p class="tag">オフライン・対面プレイ（正面通し）</p>
 
-        <div class="settings panel">
+        <button class="btn storebtn" id="store">🛒 ストア${allUnlocked() ? '（全解放済み）' : ''}</button>
+
+        <div class="panel">
+          <div class="fmt-line">フォーマット：<b>${b.sb.toLocaleString('en-US')}-${b.bb.toLocaleString('en-US')}${ante}</b>　スタック <b>${settings.startStack.toLocaleString('en-US')}</b>（${bbCount}BB）${settings.tournament && isUnlocked('tournament') ? '　🏆トーナメント' : ''}</div>
+        </div>
+
+        <div class="panel settings">
           <label>プレイヤー1の名前
             <input id="n0" type="text" value="${escapeAttr(settings.names[0])}" maxlength="10">
           </label>
           <label>プレイヤー2の名前
             <input id="n1" type="text" value="${escapeAttr(settings.names[1])}" maxlength="10">
           </label>
-          <label>開始スタック
-            <input id="ss" type="number" value="${settings.startStack}" min="100" step="100">
-          </label>
-          <div class="row2">
-            <label>SB
-              <input id="sb" type="number" value="${settings.smallBlind}" min="1" step="1">
-            </label>
-            <label>BB
-              <input id="bb" type="number" value="${settings.bigBlind}" min="2" step="1">
-            </label>
-          </div>
           <label class="check">
             <input id="rot" type="checkbox" ${settings.rotateP2 ? 'checked' : ''}>
-            プレイヤー2側の画面を180°回転（対面で読みやすく）
+            <span class="pt-label">プレイヤー2側の画面を180°回転（対面で読みやすく）</span>
           </label>
+        </div>
+
+        <div class="panel settings">
+          <div class="panel-title">設定（課金で解放）</div>
+          <label class="${stackEditable ? '' : 'locked'}" ${stackEditable ? '' : 'data-tostore="edit_stack"'}>
+            <span class="pt-label">開始スタック ${stackEditable ? '' : `<span class="lock">🔒 ${yen(PRODUCTS.edit_stack.price)}</span>`}</span>
+            <input id="ss" type="number" value="${settings.startStack}" min="200" step="100" ${stackEditable ? '' : 'disabled'}>
+          </label>
+          ${paidToggle('bb_display', 'bbd', 'BB表示', 'スタックやポットをBB単位で表示')}
+          ${paidToggle('no_ante', 'antoff', 'ante無しモード', 'アンティを無しにして対戦')}
+          ${paidToggle('tournament', 'tourn', 'トーナメントモード', 'ハンドが進むとブラインドが上昇')}
         </div>
 
         <button class="btn big primary" id="start">ゲーム開始</button>
@@ -586,27 +698,79 @@
           <div class="rules-body">
             <p>1台のスマホを2人で挟み、向かい合って遊ぶヘッズアップ（1対1）の No Limit Texas Hold'em です。完全オフラインで動作します。</p>
             <ul>
-              <li>自分の手番になると「タップして手札を確認」と表示されます。相手に見えないように画面を手元に引き寄せてから確認してください。</li>
+              <li>手番のプレイヤーの手札を長押し（左手で隠して右手で捲る感覚）すると自分の手札を確認できます。</li>
               <li>フォールド／チェック／コール／ベット・レイズ／オールインから選びます。</li>
               <li>各ハンド終了でボタン（🔘＝ディーラー兼SB）が交代します。</li>
               <li>どちらかのスタックが0になるとゲーム終了です。</li>
             </ul>
           </div>
         </details>
-        <p class="version">v1.0 ・ ホーム画面に追加するとアプリのように起動できます</p>
+        <p class="version">v1.1 ・ ホーム画面に追加するとアプリのように起動できます</p>
       </div>`;
+
+    // 未解放トグル／項目はタップでストアへ
+    document.querySelectorAll('[data-tostore]').forEach((el) => {
+      el.addEventListener('click', (e) => { e.preventDefault(); renderStore(); });
+    });
+
+    $('#store').onclick = renderStore;
 
     $('#start').onclick = () => {
       settings.names[0] = ($('#n0').value || 'プレイヤー1').trim();
       settings.names[1] = ($('#n1').value || 'プレイヤー2').trim();
-      settings.startStack = clampInt($('#ss').value, 100, 1000000, 1000);
-      settings.smallBlind = clampInt($('#sb').value, 1, 100000, 10);
-      settings.bigBlind = Math.max(settings.smallBlind + 1, clampInt($('#bb').value, 2, 200000, 20));
       settings.rotateP2 = $('#rot').checked;
+      if (stackEditable) settings.startStack = clampInt($('#ss').value, 200, 100000000, 20000);
+      settings.bbDisplay = isUnlocked('bb_display') ? $('#bbd').checked : false;
+      settings.anteOff = isUnlocked('no_ante') ? $('#antoff').checked : false;
+      settings.tournament = isUnlocked('tournament') ? $('#tourn').checked : false;
       saveSettings(settings);
       newMatch();
       startHand();
     };
+  }
+
+  // ---- 画面：ストア（課金） ----
+  function renderStore() {
+    const item = (key) => {
+      const p = PRODUCTS[key];
+      const owned = isUnlocked(key);
+      return `<div class="store-item">
+          <div class="si-main"><div class="si-name">${p.name}</div><div class="si-desc">${p.desc}</div></div>
+          <button class="btn ${owned ? 'owned' : 'primary'}" data-buy="${key}" ${owned ? 'disabled' : ''}>${owned ? '購入済み' : yen(p.price)}</button>
+        </div>`;
+    };
+    const bundleOwned = allUnlocked();
+    $('#app').innerHTML = `
+      <div class="store">
+        <div class="store-head"><button class="btn back" id="back">← 戻る</button><h2>ストア</h2></div>
+        <p class="muted store-note">課金すると各機能が解放されます。<br>※このWeb版では実際の決済は行われず、購入操作で端末内に解放される雛形です（実アプリ化の際にApp Storeの課金へ接続します）。</p>
+        ${Object.keys(PRODUCTS).map(item).join('')}
+        <div class="store-item bundle">
+          <div class="si-main"><div class="si-name">⭐ 全部セット</div><div class="si-desc">上記すべてを解放（おトク）</div></div>
+          <button class="btn ${bundleOwned ? 'owned' : 'primary'}" id="buyBundle" ${bundleOwned ? 'disabled' : ''}>${bundleOwned ? '購入済み' : yen(BUNDLE_PRICE)}</button>
+        </div>
+      </div>`;
+
+    $('#back').onclick = renderHome;
+    document.querySelectorAll('[data-buy]').forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.getAttribute('data-buy');
+        const p = PRODUCTS[key];
+        if (confirm(`「${p.name}」を ${yen(p.price)} で購入しますか？\n（デモ版：実決済は行われません）`)) {
+          purchase(key);
+          renderStore();
+        }
+      };
+    });
+    const bb = $('#buyBundle');
+    if (bb && !bundleOwned) {
+      bb.onclick = () => {
+        if (confirm(`「全部セット」を ${yen(BUNDLE_PRICE)} で購入しますか？\n（デモ版：実決済は行われません）`)) {
+          purchaseBundle();
+          renderStore();
+        }
+      };
+    }
   }
 
   function clampInt(v, lo, hi, dflt) {
@@ -622,7 +786,8 @@
   window.NLH = {
     _state: () => ({ G, H }),
     _setSettings: (s) => { settings = Object.assign({}, defaultSettings, s); },
-    newMatch, startHand, act, renderAction, renderResult, renderHome, showGameOver,
+    newMatch, startHand, act, renderAction, renderResult, renderHome, renderStore, showGameOver,
+    _unlock: (k) => purchase(k), _unlockAll: purchaseBundle,
     get G() { return G; }, get H() { return H; },
   };
 
