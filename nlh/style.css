@@ -35,7 +35,7 @@ h1,h2{ margin:.2em 0; }
   box-shadow:0 2px 0 rgba(0,0,0,.25);
 }
 .btn:active{ transform:translateY(1px); filter:brightness(1.1); }
-.btn.big{ width:100%; padding:18px; font-size:19px; }
+.btn.big{ width:100%; padding:15px; font-size:18px; }
 .btn.primary{ background:linear-gradient(#e8c873,#cfa84f); color:#3a2c00; }
 .btn.fold{ background:#7a2b2b; }
 .btn.call{ background:#2f7a4a; }
@@ -45,15 +45,16 @@ h1,h2{ margin:.2em 0; }
 .btn .amt{ display:block; font-size:12px; font-weight:600; opacity:.85; }
 
 /* ---- ホーム ---- */
-.home{ text-align:center; gap:14px; display:flex; flex-direction:column; }
-.logo{ font-size:30px; font-weight:900; line-height:1.1; letter-spacing:1px; margin-top:20px; }
-.logo span{ color:var(--gold); font-size:18px; }
-.tag{ color:var(--muted); margin-top:-6px; }
+.home{ text-align:center; gap:10px; display:flex; flex-direction:column; }
+.logo{ font-size:24px; font-weight:900; line-height:1.05; letter-spacing:1px; margin-top:6px; }
+.logo span{ color:var(--gold); font-size:15px; }
+.tag{ color:var(--muted); margin-top:-4px; font-size:13px; }
 .panel{ background:rgba(0,0,0,.22); border:1px solid var(--line);
-  border-radius:16px; padding:16px; text-align:left; }
-.settings label{ display:block; font-size:13px; color:var(--muted); margin-bottom:12px; }
+  border-radius:14px; padding:13px; text-align:left; }
+.settings label{ display:block; font-size:12px; color:var(--muted); margin-bottom:9px; }
+.settings label:last-child{ margin-bottom:0; }
 .settings input[type=text], .settings input[type=number]{
-  width:100%; margin-top:5px; padding:11px 12px; font-size:16px; border-radius:10px;
+  width:100%; margin-top:4px; padding:9px 11px; font-size:16px; border-radius:9px;
   border:1px solid var(--line); background:#0c2b20; color:#fff;
 }
 .settings .row2{ display:flex; gap:12px; }
@@ -90,6 +91,7 @@ h1,h2{ margin:.2em 0; }
 .si-desc{ font-size:12px; color:var(--muted); margin-top:3px; }
 .store-item .btn{ flex:0 0 auto; min-width:84px; padding:12px 14px; }
 .btn.owned{ background:#2f7a4a; opacity:.7; }
+.btn.restore{ background:#33524a; margin-top:4px; }
 
 /* テーブル中央のブラインド表示 */
 .blinds-line{ font-size:12px; color:var(--gold); font-weight:700; }

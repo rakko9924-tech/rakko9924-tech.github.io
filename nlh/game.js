@@ -52,9 +52,47 @@
   let unlocks = loadUnlocks();
   function isUnlocked(key) { return !!unlocks[key]; }
   function allUnlocked() { return Object.keys(PRODUCTS).every((k) => isUnlocked(k)); }
-  function purchase(key) { unlocks[key] = true; localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
-  function purchaseBundle() { Object.keys(PRODUCTS).forEach((k) => { unlocks[k] = true; }); localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
+  function grant(key) { unlocks[key] = true; localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
+  function grantBundle() { Object.keys(PRODUCTS).forEach((k) => { unlocks[k] = true; }); localStorage.setItem(UNLOCK_KEY, JSON.stringify(unlocks)); }
   const yen = (n) => '¥' + n.toLocaleString('en-US');
+
+  // ---- App内課金（標準フロー / StoreKit 接続点） ----
+  // ネイティブのストア課金ブリッジ(window.IAP)があればそれを使う。
+  // ネイティブ実装側に purchase(productId)->Promise / restore()->Promise<string[]> を用意して接続する。
+  const IAP_IDS = {
+    bb_display: 'nlh.bb_display',
+    edit_stack: 'nlh.edit_stack',
+    tournament: 'nlh.tournament',
+    no_ante: 'nlh.no_ante',
+    bundle: 'nlh.all_bundle',
+  };
+  function nativeIAP() {
+    return (typeof window !== 'undefined' && window.IAP && typeof window.IAP.purchase === 'function') ? window.IAP : null;
+  }
+  function applyPurchase(key) { if (key === 'bundle') grantBundle(); else grant(key); }
+  // 戻り値: 'ok'（ネイティブ課金成功） / 'failed' / 'fallback'（ブラウザ＝ネイティブ非対応）
+  async function buyProduct(key) {
+    const native = nativeIAP();
+    if (native) {
+      try { await native.purchase(IAP_IDS[key]); applyPurchase(key); return 'ok'; }
+      catch (e) { return 'failed'; }
+    }
+    return 'fallback';
+  }
+  async function restorePurchases() {
+    const native = nativeIAP();
+    if (native && typeof native.restore === 'function') {
+      try {
+        const owned = (await native.restore()) || [];
+        owned.forEach((pid) => {
+          const k = Object.keys(IAP_IDS).find((kk) => IAP_IDS[kk] === pid);
+          if (k) applyPurchase(k);
+        });
+        return 'ok';
+      } catch (e) { return 'failed'; }
+    }
+    return 'fallback';
+  }
 
   // ---- 現在のブラインド／アンティ（トーナメントなら上昇） ----
   // トーナメントのブラインド表（SB, BB, ante）。一定ハンドごとにレベルが上がる。
@@ -668,20 +706,15 @@
         </div>
 
         <div class="panel settings">
-          <label>プレイヤー1の名前
-            <input id="n0" type="text" value="${escapeAttr(settings.names[0])}" maxlength="10">
-          </label>
-          <label>プレイヤー2の名前
-            <input id="n1" type="text" value="${escapeAttr(settings.names[1])}" maxlength="10">
-          </label>
-          <label class="check">
-            <input id="rot" type="checkbox" ${settings.rotateP2 ? 'checked' : ''}>
-            <span class="pt-label">プレイヤー2側の画面を180°回転（対面で読みやすく）</span>
-          </label>
-        </div>
-
-        <div class="panel settings">
-          <div class="panel-title">設定（課金で解放）</div>
+          <div class="row2">
+            <label>プレイヤー1
+              <input id="n0" type="text" value="${escapeAttr(settings.names[0])}" maxlength="10">
+            </label>
+            <label>プレイヤー2
+              <input id="n1" type="text" value="${escapeAttr(settings.names[1])}" maxlength="10">
+            </label>
+          </div>
+          <div class="panel-title" style="margin-top:6px">設定（課金で解放）</div>
           <label class="${stackEditable ? '' : 'locked'}" ${stackEditable ? '' : 'data-tostore="edit_stack"'}>
             <span class="pt-label">開始スタック ${stackEditable ? '' : `<span class="lock">🔒 ${yen(PRODUCTS.edit_stack.price)}</span>`}</span>
             <input id="ss" type="number" value="${settings.startStack}" min="200" step="100" ${stackEditable ? '' : 'disabled'}>
@@ -718,7 +751,7 @@
     $('#start').onclick = () => {
       settings.names[0] = ($('#n0').value || 'プレイヤー1').trim();
       settings.names[1] = ($('#n1').value || 'プレイヤー2').trim();
-      settings.rotateP2 = $('#rot').checked;
+      settings.rotateP2 = true; // 常に回転（対面で各自が正位置に）
       if (stackEditable) settings.startStack = clampInt($('#ss').value, 200, 100000000, 20000);
       settings.bbDisplay = isUnlocked('bb_display') ? $('#bbd').checked : false;
       settings.anteOff = isUnlocked('no_ante') ? $('#antoff').checked : false;
@@ -743,34 +776,39 @@
     $('#app').innerHTML = `
       <div class="store">
         <div class="store-head"><button class="btn back" id="back">← 戻る</button><h2>ストア</h2></div>
-        <p class="muted store-note">課金すると各機能が解放されます。<br>※このWeb版では実際の決済は行われず、購入操作で端末内に解放される雛形です（実アプリ化の際にApp Storeの課金へ接続します）。</p>
+        <p class="muted store-note">買い切りのApp内課金です。一度購入すると同じApple IDで「購入を復元」できます。</p>
         ${Object.keys(PRODUCTS).map(item).join('')}
         <div class="store-item bundle">
           <div class="si-main"><div class="si-name">⭐ 全部セット</div><div class="si-desc">上記すべてを解放（おトク）</div></div>
-          <button class="btn ${bundleOwned ? 'owned' : 'primary'}" id="buyBundle" ${bundleOwned ? 'disabled' : ''}>${bundleOwned ? '購入済み' : yen(BUNDLE_PRICE)}</button>
+          <button class="btn ${bundleOwned ? 'owned' : 'primary'}" data-buy="bundle" ${bundleOwned ? 'disabled' : ''}>${bundleOwned ? '購入済み' : yen(BUNDLE_PRICE)}</button>
         </div>
+        <button class="btn restore" id="restore">購入を復元</button>
       </div>`;
 
     $('#back').onclick = renderHome;
+
+    const doBuy = async (key) => {
+      const label = key === 'bundle' ? '全部セット' : PRODUCTS[key].name;
+      const price = key === 'bundle' ? BUNDLE_PRICE : PRODUCTS[key].price;
+      const res = await buyProduct(key);
+      if (res === 'ok') { renderStore(); return; }
+      if (res === 'failed') { alert('購入を完了できませんでした。'); return; }
+      // fallback（ブラウザ/PWA：ネイティブ課金が無い環境）
+      if (confirm(`「${label}」を ${yen(price)} で購入しますか？\n（この環境ではApp内課金に接続されていないため、確認のうえ解放します）`)) {
+        applyPurchase(key);
+        renderStore();
+      }
+    };
     document.querySelectorAll('[data-buy]').forEach((btn) => {
-      btn.onclick = () => {
-        const key = btn.getAttribute('data-buy');
-        const p = PRODUCTS[key];
-        if (confirm(`「${p.name}」を ${yen(p.price)} で購入しますか？\n（デモ版：実決済は行われません）`)) {
-          purchase(key);
-          renderStore();
-        }
-      };
+      btn.onclick = () => doBuy(btn.getAttribute('data-buy'));
     });
-    const bb = $('#buyBundle');
-    if (bb && !bundleOwned) {
-      bb.onclick = () => {
-        if (confirm(`「全部セット」を ${yen(BUNDLE_PRICE)} で購入しますか？\n（デモ版：実決済は行われません）`)) {
-          purchaseBundle();
-          renderStore();
-        }
-      };
-    }
+
+    $('#restore').onclick = async () => {
+      const res = await restorePurchases();
+      if (res === 'ok') { alert('購入を復元しました。'); renderStore(); }
+      else if (res === 'failed') { alert('復元できませんでした。'); }
+      else { alert('この環境ではApp内課金に接続されていません（実機アプリで復元できます）。'); }
+    };
   }
 
   function clampInt(v, lo, hi, dflt) {
@@ -787,7 +825,7 @@
     _state: () => ({ G, H }),
     _setSettings: (s) => { settings = Object.assign({}, defaultSettings, s); },
     newMatch, startHand, act, renderAction, renderResult, renderHome, renderStore, showGameOver,
-    _unlock: (k) => purchase(k), _unlockAll: purchaseBundle,
+    _unlock: (k) => grant(k), _unlockAll: grantBundle,
     get G() { return G; }, get H() { return H; },
   };
 
