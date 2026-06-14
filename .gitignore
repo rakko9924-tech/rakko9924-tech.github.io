@@ -1,0 +1,13 @@
+# Node / Capacitor
+node_modules/
+package-lock.json
+
+# Capacitor で生成されるネイティブプロジェクト（Macで生成・ローカル管理）
+/ios/
+/android/
+
+# macOS
+.DS_Store
+
+# ログ
+*.log
