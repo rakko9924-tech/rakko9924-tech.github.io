@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>ゴッドガチャ ∞</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ヘッダ（神石・天井・回復） -->
+  <header class="hud">
+    <div class="logo">ゴッドガチャ<span>∞</span></div>
+    <div class="hud-right">
+      <div class="curr">
+        <div class="gem">💎 <b id="gemCount">0</b></div>
+        <div class="gp">🎟 <b id="gpCount">0</b></div>
+      </div>
+      <div class="pity">
+        <span>SSR天井 あと<b id="pitySSR">-</b></span>
+        <span>UR天井 あと<b id="pityUR">-</b></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ガチャ画面 -->
+  <main class="panel on" id="panel-gacha">
+    <div class="banner">
+      <div class="banner-art">⛩️</div>
+      <div class="banner-cap">神々を、引け。</div>
+      <div class="banner-sub">概念神『一なる全』排出率 0.000001%（1/1億）</div>
+    </div>
+
+    <div class="pull-area">
+      <button id="btnSingle" class="pull-btn single">
+        <span class="pb-t">単発</span><span class="pb-c">💎 5</span>
+      </button>
+      <button id="btnMulti" class="pull-btn multi">
+        <span class="pb-t">10連</span><span class="pb-c">💎 50</span>
+        <span class="pb-tag">SR以上 確定</span>
+      </button>
+    </div>
+    <div class="regen-line" id="regen">—</div>
+    <button id="btnReward" class="reward-btn">🎬 動画を見て <b>💎+30</b></button>
+  </main>
+
+  <!-- ポイントガチャ（連打クリッカー） -->
+  <section class="panel" id="panel-point">
+    <div class="pt-head">
+      <div class="pt-title">ポイントガチャ</div>
+      <div class="pt-sub">連打して <b>ガチャポイント</b> を稼ごう！ためた🎟は神石に交換できる。</div>
+    </div>
+
+    <div class="machine-wrap">
+      <button id="machine" class="machine" aria-label="ポイントガチャを回す">
+        <img class="cap cap-img" src="assets/ui_capsule.png" alt="">
+        <span class="machine-hint">タップ！</span>
+      </button>
+      <div id="floatLayer" class="float-layer"></div>
+    </div>
+    <div class="pt-stat">累計 <b id="spinCount">0</b> 回・所持 🎟<b id="gpCount2">0</b></div>
+
+    <div class="exchange">
+      <div class="ex-title">🎟 → 💎 交換所（10🎟 = 💎1）</div>
+      <div class="ex-btns">
+        <button class="ex-btn" data-gem="5">💎5 にする<span>50🎟</span></button>
+        <button class="ex-btn" data-gem="50">💎50 にする<span>500🎟</span></button>
+        <button id="exMax" class="ex-btn max">MAX交換<span id="exMaxNote">—</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 図鑑 -->
+  <section class="panel" id="panel-dex">
+    <div class="dex-top"><span id="dexPct">コンプ率 0%</span></div>
+    <div id="dexList" class="dex-list"></div>
+  </section>
+
+  <!-- ショップ -->
+  <section class="panel" id="panel-shop">
+    <h2 class="ph">神石ショップ</h2>
+    <p class="pnote">無料でも自然回復＆10連で遊べます。課金で大量に引けます。</p>
+    <div id="shopList" class="shop-list"></div>
+    <button id="devReset" class="dev">（開発用）セーブ初期化</button>
+  </section>
+
+  <!-- 確率 -->
+  <section class="panel" id="panel-rate">
+    <h2 class="ph">提供割合</h2>
+    <div id="rateList" class="rate-list"></div>
+    <p class="pity-note" id="pityNote"></p>
+  </section>
+
+  <!-- 下部タブ -->
+  <nav class="tabs">
+    <button class="tab on" data-tab="gacha">⛩️<span>神ガチャ</span></button>
+    <button class="tab" data-tab="point">🎟<span>ポイント</span></button>
+    <button class="tab" data-tab="dex">📖<span>図鑑</span><i id="dexBadge" class="badge">0/0</i></button>
+    <button class="tab" data-tab="shop">💎<span>ショップ</span></button>
+    <button class="tab" data-tab="rate">％<span>確率</span></button>
+  </nav>
+
+  <!-- 排出演出オーバーレイ -->
+  <div id="overlay" class="overlay">
+    <div class="flash"></div>
+    <div id="stage" class="stage"></div>
+    <button id="stageClose" class="stage-close">タップで閉じる</button>
+  </div>
+
+  <!-- 概念神バナー -->
+  <div id="concept" class="concept">
+    <div class="concept-inner">
+      <div class="concept-tag">— 概 念 神 —</div>
+      <div class="concept-name" id="conceptName"></div>
+      <div class="concept-msg">あり得ない確率を、あなたは引き当てた。<br>1/1億。これは“事件”だ。</div>
+      <button id="conceptClose" class="concept-btn">受け入れる</button>
+    </div>
+  </div>
+
+  <!-- トースト -->
+  <div id="toast" class="toast"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/gacha.js"></script>
+  <script src="services.js"></script>
+  <script src="iap.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
