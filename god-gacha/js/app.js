@@ -27,8 +27,10 @@
   // ---------- アート（画像 or 絵文字フォールバック）----------
   // assets/<artKey>.png をimgで読み込み、404なら自動でimgを消して絵文字を見せる。
   function artInner(god, emojiClass) {
-    return '<span class="emoji ' + (emojiClass || "") + '">' + god.emoji + "</span>" +
-      '<img class="art-img" alt="" loading="lazy" src="assets/' + god.artKey + '.png" onerror="this.style.display=\'none\'">';
+    // 絵文字はスプライト読み込み失敗時のみ表示（既定は非表示＝結果カード裏に絵文字を出さない）
+    return '<span class="emoji ' + (emojiClass || "") + '" style="display:none">' + god.emoji + "</span>" +
+      '<img class="art-img" alt="" loading="lazy" src="assets/' + god.artKey + '.png" ' +
+      'onerror="this.style.display=\'none\'; var e=this.previousElementSibling; if(e)e.style.display=\'\'">';
   }
 
   // ---------- カード生成 ----------
@@ -94,10 +96,53 @@
     refreshHud();
   }
 
+  let pendingHero = null; // SSR以上の大演出→次へ
+
+  function buildGrid(results, top) {
+    stage.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.className = "result-grid" + (results.length === 1 ? " single" : "");
+    stage.appendChild(grid);
+    results.forEach(function (res, i) {
+      const c = card(res.god, res.rarity, { isNew: res.isNew, refund: res.refund });
+      c.style.animationDelay = (i * 70) + "ms";
+      c.classList.add("pop");
+      grid.appendChild(c);
+    });
+    renderDexMini();
+  }
+
+  // SSR以上：その神を画面いっぱいに大きく表示（GPT召喚背景）→タップで全体結果へ
+  function heroReveal(top, onContinue) {
+    stage.innerHTML = "";
+    const r = top.rarity;
+    const h = document.createElement("div");
+    h.className = "hero r-" + r.id + (r.aurora ? " aurora" : "") + (r.glitch ? " glitch" : "");
+    h.style.setProperty("--rc", r.color);
+    h.style.setProperty("--rg", r.glow);
+    const flair = r.rank >= D.BY_ID.XR.rank ? "概念神 降臨…！"
+      : r.rank >= D.BY_ID.GR.rank ? "宇宙神 降臨！"
+      : r.rank >= D.BY_ID.LR.rank ? "主神 降臨！"
+      : r.rank >= D.BY_ID.UR.rank ? "大神 降臨！" : "上級神 降臨！";
+    h.innerHTML =
+      '<div class="hero-rays"></div>' +
+      '<div class="hero-badge">' + r.id + "</div>" +
+      '<img class="hero-god" src="assets/' + top.god.artKey + '.png" alt="">' +
+      '<div class="hero-flair">' + flair + "</div>" +
+      '<div class="hero-name">' + top.god.name + "</div>" +
+      '<div class="hero-tier">' + r.label + " · " + r.tier + "</div>" +
+      '<div class="hero-hint">タップで結果へ</div>';
+    stage.appendChild(h);
+    let done = false;
+    const t = setTimeout(function () { go(); }, 3200);
+    function go() { if (done) return; done = true; clearTimeout(t); pendingHero = null; onContinue(); }
+    h.addEventListener("click", go);
+    pendingHero = go;
+  }
+
   function revealCards(results, top) {
     overlay.classList.remove("balls");
     const rk = top.rarity.rank;
-    // 最高レアに応じた閃光・特別演出
     overlay.style.setProperty("--flash", top.rarity.glow);
     overlay.classList.toggle("big", rk >= D.BY_ID.SSR.rank);
     overlay.classList.toggle("legendary", rk >= D.BY_ID.UR.rank);
@@ -110,20 +155,12 @@
 
     setTimeout(function () {
       overlay.classList.remove("ominous");
-      stage.innerHTML = "";
-      const grid = document.createElement("div");
-      grid.className = "result-grid" + (results.length === 1 ? " single" : "");
-      stage.appendChild(grid);
-      results.forEach(function (res, i) {
-        const c = card(res.god, res.rarity, { isNew: res.isNew, refund: res.refund });
-        c.style.animationDelay = (i * 70) + "ms";
-        c.classList.add("pop");
-        grid.appendChild(c);
-      });
-      if (rk >= D.BY_ID.XR.rank) showConceptBanner(top.god);
-      else if (rk >= D.BY_ID.GR.rank) toast("✦ 宇宙神 降臨 ✦");
-      else if (rk >= D.BY_ID.SSR.rank) toast("★ " + top.rarity.label + " 降臨！ ★");
-      renderDexMini();
+      if (rk >= D.BY_ID.SSR.rank) {
+        overlay.classList.add("hero-on");
+        heroReveal(top, function () { overlay.classList.remove("hero-on"); buildGrid(results, top); });
+      } else {
+        buildGrid(results, top);
+      }
     }, 460);
   }
 
@@ -135,13 +172,14 @@
   $("#conceptClose").addEventListener("click", function () { $("#concept").classList.remove("show"); });
 
   function closeOverlay() {
-    overlay.classList.remove("show", "balls", "ominous");
+    overlay.classList.remove("show", "balls", "ominous", "hero-on");
     if (window.Services && Services.Ads) Services.Ads.maybeInterstitial(); // §7.2 次画面描画後に表示
   }
   $("#stageClose").addEventListener("click", closeOverlay);
   overlay.addEventListener("click", function (e) {
     if (e.target !== overlay) return;
-    if (overlay.classList.contains("balls") && pendingOpen) { pendingOpen(); return; } // 玉フェーズは開封
+    if (overlay.classList.contains("balls") && pendingOpen) { pendingOpen(); return; }   // 玉フェーズは開封
+    if (overlay.classList.contains("hero-on") && pendingHero) { pendingHero(); return; }  // 大演出は次へ
     closeOverlay();
   });
 

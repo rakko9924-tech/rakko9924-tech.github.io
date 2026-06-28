@@ -214,6 +214,31 @@ body{
 @keyframes ballCrack{0%{transform:scale(1)}38%{transform:scale(1.32) rotate(4deg)}100%{transform:scale(.15);opacity:0}}
 .ball-hint{color:#fff; font-weight:800; font-size:13px; opacity:.92; animation:hintPulse 1s ease-in-out infinite; text-shadow:0 1px 4px rgba(0,0,0,.6);}
 @keyframes hintPulse{50%{opacity:.38}}
+
+/* ---------- SSR以上 大演出（召喚ヒーロー）---------- */
+.overlay.hero-on .stage-close{display:none;}
+.hero{position:relative; width:100%; max-width:440px; min-height:80vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:5px; border-radius:18px; overflow:hidden;
+  background:#1a0e36 url("assets/ui_summon.jpg") center/cover no-repeat; animation:heroIn .45s ease both;}
+@keyframes heroIn{from{opacity:0; transform:scale(.93)}to{opacity:1; transform:scale(1)}}
+.hero::after{content:""; position:absolute; inset:0; background:radial-gradient(62% 52% at 50% 44%, transparent, rgba(8,4,22,.6));}
+.hero > *{position:relative; z-index:2;}
+.hero-rays{position:absolute; inset:-25%; z-index:1; opacity:.45;
+  background:conic-gradient(from 0deg, transparent 0 7deg, rgba(255,255,255,.14) 7deg 11deg, transparent 11deg 18deg);
+  animation:raysSpin 14s linear infinite;}
+@keyframes raysSpin{to{transform:rotate(360deg)}}
+.hero-god{width:76%; max-width:300px; max-height:50vh; object-fit:contain;
+  filter:drop-shadow(0 0 30px var(--rg)) drop-shadow(0 10px 22px rgba(0,0,0,.55));
+  animation:heroGod .6s cubic-bezier(.2,.8,.3,1.25) both;}
+@keyframes heroGod{0%{transform:translateY(22px) scale(.6);opacity:0}100%{transform:none;opacity:1}}
+.hero-badge{position:absolute; top:14px; left:14px; z-index:3; background:var(--rc); color:#fff;
+  font-weight:900; font-size:16px; padding:3px 13px; border-radius:10px; box-shadow:0 3px 8px rgba(0,0,0,.4);}
+.hero.glitch .hero-badge{background:#15151f;}
+.hero-flair{color:#fff; font-weight:900; font-size:21px; letter-spacing:1px; text-shadow:0 2px 12px var(--rg),0 2px 6px rgba(0,0,0,.6);}
+.hero-name{color:#fff; font-weight:900; font-size:27px; text-shadow:0 2px 8px rgba(0,0,0,.75);}
+.hero-tier{color:#fff; opacity:.9; font-size:12px; text-shadow:0 1px 4px rgba(0,0,0,.75);}
+.hero-hint{margin-top:12px; color:#fff; font-weight:800; font-size:13px; opacity:.85;
+  animation:hintPulse 1s ease-in-out infinite; text-shadow:0 1px 4px rgba(0,0,0,.6);}
 .result-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; width:100%;}
 .result-grid.single{grid-template-columns:1fr; max-width:200px; margin:0 auto;}
 .result-grid .card.pop{animation:pop .28s ease both;}
