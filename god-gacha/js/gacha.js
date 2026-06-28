@@ -27,9 +27,13 @@
     // --- ガチャ玉（演出用・最低保証テーザー）---
     // 結果レア度→玉の色。色を見れば最低ランクが分かる（赤=SSR以上, 金=UR以上, 虹=LR以上）。
     BALL_OF: { N:"white", R:"green", SR:"blue", SSR:"red", UR:"gold", LR:"rainbow", GR:"rainbow", XR:"rainbow" },
-    // 黒玉：XRの唯一路。出現1/100万、中身は1%XR/99%N ⇒ XR全体=1e-8=1/1億 を維持。
-    BLACK_BALL_RATE: 1e-6,
+    // 黒玉：XR入手の主路。出現0.9/100万、中身1%XR/99%N ⇒ 黒玉XR=0.9e-8（XR全体の90%）。
+    BLACK_BALL_RATE: 0.9e-6,
     BLACK_XR_CHANCE: 0.01,
+    // 潜伏XR：通常玉(白〜虹)のどれにも紛れるXR。合計0.1e-8（XR全体の10%）を6色へ均等。
+    // 黒玉XR(0.9e-8)＋潜伏XR(0.1e-8)=1e-8=1/1億 を厳守。
+    HIDDEN_XR_RATE: 1e-9,
+    HIDDEN_XR_BALLS: ["white", "green", "blue", "red", "gold", "rainbow"],
 
     // --- ポイントガチャ（連打クリッカー層）---
     // 1タップ=1スピン。GP がランダムに出る。超レアで神石(gems)直ドロップ。
@@ -150,6 +154,19 @@
       S.totalPulls++; if (brar.rank > S.best) S.best = brar.rank;
       S.log.unshift({ id: bgod.id, r: brar.id, t: now() }); if (S.log.length > 200) S.log.length = 200;
       return { god: bgod, rarity: brar, isNew: bnew, refund: brefund, pitied: false, ball: "black" };
+    }
+
+    // 潜伏XR：通常玉(白〜虹)のどれかに紛れるXR（XRの10%）。玉色はランダムで“じつはXR”のサプライズ。
+    if (Math.random() < CFG.HIDDEN_XR_RATE) {
+      const xrar = D.BY_ID.XR;
+      S.sinceSSR = 0; S.sinceUR = 0; // XRはSSR/UR以上→天井カウンタをリセット
+      const xgod = pickGod("XR");
+      const xhad = S.dex[xgod.id] || 0; const xnew = xhad === 0; S.dex[xgod.id] = xhad + 1;
+      let xrefund = 0; if (!xnew) { xrefund = CFG.DUP_REFUND.XR || 0; S.gems += xrefund; }
+      S.totalPulls++; if (xrar.rank > S.best) S.best = xrar.rank;
+      S.log.unshift({ id: xgod.id, r: "XR", t: now() }); if (S.log.length > 200) S.log.length = 200;
+      const ballc = CFG.HIDDEN_XR_BALLS[(Math.random() * CFG.HIDDEN_XR_BALLS.length) | 0];
+      return { god: xgod, rarity: xrar, isNew: xnew, refund: xrefund, pitied: false, ball: ballc };
     }
 
     // 天井による下限 rank を決定
