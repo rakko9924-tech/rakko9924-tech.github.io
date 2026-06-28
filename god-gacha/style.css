@@ -146,8 +146,10 @@ body{
 }
 .card .rbadge{position:absolute; top:6px; left:6px; font-size:11px; font-weight:800;
   color:#fff; background:var(--rc); padding:1px 7px; border-radius:8px;}
-.card .newt{position:absolute; top:6px; right:6px; font-size:10px; font-weight:800;
-  color:#fff; background:var(--accent2); padding:1px 6px; border-radius:8px;}
+/* NEWはレア度バッジ(左上)と被らないよう右下へ。NEWと還元(+💎)は排他なので衝突しない */
+.card .newt{position:absolute; bottom:6px; right:6px; z-index:2; font-size:10px; font-weight:800;
+  color:#fff; background:var(--accent2); padding:1px 7px; border-radius:8px;
+  box-shadow:0 2px 5px rgba(0,0,0,.25);}
 .card .art{position:relative; height:74px; display:flex; align-items:center; justify-content:center;
   background:radial-gradient(60% 60% at 50% 45%, var(--rg), transparent 70%); border-radius:12px;}
 .card .emoji{font-size:46px; filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));}
@@ -190,6 +192,28 @@ body{
 .overlay.concept .flash{animation:flash 2s ease-out;}
 @keyframes flash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
 .stage{display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; max-width:460px;}
+
+/* ---------- ガチャ玉フェーズ（回す演出）---------- */
+.overlay.balls .stage-close{display:none;}
+.overlay.ominous{background:rgba(2,2,8,.9);} /* 黒玉の不気味演出 */
+.ball-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; width:100%; max-width:460px;}
+.ball-grid.single{grid-template-columns:1fr; max-width:200px; margin:0 auto;}
+.ball-item{position:relative; display:flex; align-items:center; justify-content:center;}
+.ball-item::before{content:""; position:absolute; width:86%; aspect-ratio:1; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 68%);}
+.ball-item img{width:100%; max-width:84px; filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));
+  animation:ballIn .32s ease both, ballShake 1.1s ease-in-out .32s infinite;}
+.ball-grid.single .ball-item img{max-width:168px;}
+@keyframes ballIn{0%{transform:scale(.2) translateY(-26px);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes ballShake{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+/* 高レアの玉ほど後光 */
+.ball-item.ball-red img,.ball-item.ball-gold img{filter:drop-shadow(0 0 14px var(--rg,#ffd54a)) drop-shadow(0 6px 10px rgba(0,0,0,.45));}
+.ball-item.ball-rainbow img{filter:drop-shadow(0 0 18px #fff) drop-shadow(0 0 30px #b8f) drop-shadow(0 6px 10px rgba(0,0,0,.45));}
+.ball-item.ball-black img{filter:drop-shadow(0 0 18px #a05cff) drop-shadow(0 6px 10px rgba(0,0,0,.6));}
+.ball-item.crack img{animation:ballCrack .44s ease forwards;}
+@keyframes ballCrack{0%{transform:scale(1)}38%{transform:scale(1.32) rotate(4deg)}100%{transform:scale(.15);opacity:0}}
+.ball-hint{color:#fff; font-weight:800; font-size:13px; opacity:.92; animation:hintPulse 1s ease-in-out infinite; text-shadow:0 1px 4px rgba(0,0,0,.6);}
+@keyframes hintPulse{50%{opacity:.38}}
 .result-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; width:100%;}
 .result-grid.single{grid-template-columns:1fr; max-width:200px; margin:0 auto;}
 .result-grid .card.pop{animation:pop .28s ease both;}

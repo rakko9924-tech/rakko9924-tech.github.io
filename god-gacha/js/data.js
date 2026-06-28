@@ -20,7 +20,7 @@
     { id: "UR",  rank: 4, label: "大神",   tier: "おおがみ",     weight: 0.015,      color: "#ffc23a", glow: "#ffe39a", dustBack: 30 },
     { id: "LR",  rank: 5, label: "主神",   tier: "しゅしん",     weight: 0.005,      color: "#ff5e7a", glow: "#ffd0d9", dustBack: 80 },
     { id: "GR",  rank: 6, label: "宇宙神", tier: "うちゅうしん", weight: 0.001,      color: "#19f0d8", glow: "#b8fff6", dustBack: 250, aurora: true },
-    { id: "XR",  rank: 7, label: "概念神", tier: "がいねんしん", weight: 1e-8,       color: "#ffffff", glow: "#ffffff", dustBack: 99999, glitch: true },
+    { id: "XR",  rank: 7, label: "概念神", tier: "がいねんしん", weight: 0,          color: "#ffffff", glow: "#ffffff", dustBack: 99999, glitch: true },
   ];
 
   // rank/idで引けるよう索引化

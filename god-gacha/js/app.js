@@ -57,35 +57,74 @@
   const overlay = $("#overlay");
   const stage = $("#stage");
 
+  let pendingOpen = null; // 玉フェーズの開封関数
+
   function playResults(results) {
     stage.innerHTML = "";
-    overlay.classList.add("show");
+    overlay.classList.add("show", "balls");
+    overlay.classList.remove("big", "legendary", "cosmic", "concept");
     const top = results.reduce(function (m, x) { return x.rarity.rank > m.rarity.rank ? x : m; }, results[0]);
+    const hasBlack = results.some(function (r) { return r.ball === "black"; });
 
-    // 最高レアに応じた閃光色
-    overlay.style.setProperty("--flash", top.rarity.glow);
-    overlay.classList.toggle("big", top.rarity.rank >= D.BY_ID.SSR.rank);
-    overlay.classList.toggle("legendary", top.rarity.rank >= D.BY_ID.UR.rank);
-    overlay.classList.toggle("cosmic", top.rarity.rank >= D.BY_ID.GR.rank);
-    overlay.classList.toggle("concept", top.rarity.rank >= D.BY_ID.XR.rank);
-
-    // カードを順次出す
-    const grid = document.createElement("div");
-    grid.className = "result-grid" + (results.length === 1 ? " single" : "");
-    stage.appendChild(grid);
+    // --- Phase1: ガチャ玉を出す（色＝最低保証のテーザー）---
+    const bg = document.createElement("div");
+    bg.className = "ball-grid" + (results.length === 1 ? " single" : "");
     results.forEach(function (res, i) {
-      const c = card(res.god, res.rarity, { isNew: res.isNew, refund: res.refund });
-      c.style.animationDelay = (i * 70) + "ms";
-      c.classList.add("pop");
-      grid.appendChild(c);
+      const b = document.createElement("div");
+      b.className = "ball-item ball-" + (res.ball || "white");
+      b.style.animationDelay = (i * 55) + "ms";
+      b.innerHTML = '<img src="assets/ball_' + (res.ball || "white") + '.png" alt="">';
+      bg.appendChild(b);
     });
+    stage.appendChild(bg);
+    const hint = document.createElement("div");
+    hint.className = "ball-hint";
+    hint.textContent = hasBlack ? "…黒玉…！？ タップで開封" : "タップで開封！";
+    if (hasBlack) overlay.classList.add("ominous");
+    stage.appendChild(hint);
 
-    // 概念神(XR)の特別バナー
-    if (top.rarity.rank >= D.BY_ID.XR.rank) showConceptBanner(top.god);
-    else if (top.rarity.rank >= D.BY_ID.GR.rank) toast("✦ 宇宙神 降臨 ✦");
+    let opened = false;
+    const timer = setTimeout(function () { pendingOpen && pendingOpen(); }, 2600); // AUTO_OPEN
+    pendingOpen = function () {
+      if (opened) return; opened = true; clearTimeout(timer); pendingOpen = null;
+      revealCards(results, top);
+    };
+    bg.addEventListener("click", pendingOpen);
 
     refreshHud();
-    renderDexMini();
+  }
+
+  function revealCards(results, top) {
+    overlay.classList.remove("balls");
+    const rk = top.rarity.rank;
+    // 最高レアに応じた閃光・特別演出
+    overlay.style.setProperty("--flash", top.rarity.glow);
+    overlay.classList.toggle("big", rk >= D.BY_ID.SSR.rank);
+    overlay.classList.toggle("legendary", rk >= D.BY_ID.UR.rank);
+    overlay.classList.toggle("cosmic", rk >= D.BY_ID.GR.rank);
+    overlay.classList.toggle("concept", rk >= D.BY_ID.XR.rank);
+
+    // 玉を割る
+    stage.querySelectorAll(".ball-item").forEach(function (b) { b.classList.add("crack"); });
+    const h = stage.querySelector(".ball-hint"); if (h) h.remove();
+
+    setTimeout(function () {
+      overlay.classList.remove("ominous");
+      stage.innerHTML = "";
+      const grid = document.createElement("div");
+      grid.className = "result-grid" + (results.length === 1 ? " single" : "");
+      stage.appendChild(grid);
+      results.forEach(function (res, i) {
+        const c = card(res.god, res.rarity, { isNew: res.isNew, refund: res.refund });
+        c.style.animationDelay = (i * 70) + "ms";
+        c.classList.add("pop");
+        grid.appendChild(c);
+      });
+      if (rk >= D.BY_ID.XR.rank) showConceptBanner(top.god);
+      else if (rk >= D.BY_ID.GR.rank) toast("✦ 宇宙神 降臨 ✦");
+      else if (rk >= D.BY_ID.SSR.rank) toast("★ " + top.rarity.label + " 降臨！ ★");
+      renderDexMini();
+    }, 460);
   }
 
   function showConceptBanner(god) {
@@ -96,11 +135,15 @@
   $("#conceptClose").addEventListener("click", function () { $("#concept").classList.remove("show"); });
 
   function closeOverlay() {
-    overlay.classList.remove("show");
+    overlay.classList.remove("show", "balls", "ominous");
     if (window.Services && Services.Ads) Services.Ads.maybeInterstitial(); // §7.2 次画面描画後に表示
   }
   $("#stageClose").addEventListener("click", closeOverlay);
-  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeOverlay(); });
+  overlay.addEventListener("click", function (e) {
+    if (e.target !== overlay) return;
+    if (overlay.classList.contains("balls") && pendingOpen) { pendingOpen(); return; } // 玉フェーズは開封
+    closeOverlay();
+  });
 
   // ---------- ボタン ----------
   function doPull(kind) {

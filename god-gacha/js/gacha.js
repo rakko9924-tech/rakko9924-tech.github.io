@@ -24,6 +24,13 @@
     // ダブり還元（既所持を引いたら神石に変換）
     DUP_REFUND: { N:1, R:2, SR:5, SSR:15, UR:40, LR:120, GR:400, XR:100000 },
 
+    // --- ガチャ玉（演出用・最低保証テーザー）---
+    // 結果レア度→玉の色。色を見れば最低ランクが分かる（赤=SSR以上, 金=UR以上, 虹=LR以上）。
+    BALL_OF: { N:"white", R:"green", SR:"blue", SSR:"red", UR:"gold", LR:"rainbow", GR:"rainbow", XR:"rainbow" },
+    // 黒玉：XRの唯一路。出現1/100万、中身は1%XR/99%N ⇒ XR全体=1e-8=1/1億 を維持。
+    BLACK_BALL_RATE: 1e-6,
+    BLACK_XR_CHANCE: 0.01,
+
     // --- ポイントガチャ（連打クリッカー層）---
     // 1タップ=1スピン。GP がランダムに出る。超レアで神石(gems)直ドロップ。
     GP_PER_GEM: 10,            // 交換レート：10 GP = 神石1（=神ガチャ単発の1/5）
@@ -130,6 +137,21 @@
   // opts.guaranteeMinRank: この rank 以上を保証（10連の最終保証などで使用）
   function drawOne(opts) {
     opts = opts || {};
+
+    // 黒玉（最優先・XRの唯一路）。1/100万で出現、99%N/1%XR。
+    if (Math.random() < CFG.BLACK_BALL_RATE) {
+      const isXR = Math.random() < CFG.BLACK_XR_CHANCE;
+      const brar = isXR ? D.BY_ID.XR : D.BY_ID.N;
+      if (brar.rank >= D.BY_ID.SSR.rank) S.sinceSSR = 0; else S.sinceSSR++;
+      if (brar.rank >= D.BY_ID.UR.rank)  S.sinceUR = 0;  else S.sinceUR++;
+      const bgod = pickGod(brar.id);
+      const bhad = S.dex[bgod.id] || 0; const bnew = bhad === 0; S.dex[bgod.id] = bhad + 1;
+      let brefund = 0; if (!bnew) { brefund = CFG.DUP_REFUND[brar.id] || 0; S.gems += brefund; }
+      S.totalPulls++; if (brar.rank > S.best) S.best = brar.rank;
+      S.log.unshift({ id: bgod.id, r: brar.id, t: now() }); if (S.log.length > 200) S.log.length = 200;
+      return { god: bgod, rarity: brar, isNew: bnew, refund: brefund, pitied: false, ball: "black" };
+    }
+
     // 天井による下限 rank を決定
     let floorRank = -1;
     if (S.sinceUR + 1 >= CFG.HARD_PITY_UR)  floorRank = Math.max(floorRank, D.BY_ID.UR.rank);
@@ -161,7 +183,7 @@
     S.log.unshift({ id: god.id, r: rar.id, t: now() });
     if (S.log.length > 200) S.log.length = 200;
 
-    return { god: god, rarity: rar, isNew: isNew, refund: refund, pitied: pitied };
+    return { god: god, rarity: rar, isNew: isNew, refund: refund, pitied: pitied, ball: CFG.BALL_OF[rar.id] || "white" };
   }
 
   // ---- 課金/消費 ---------------------------------------------
