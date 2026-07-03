@@ -20,6 +20,12 @@
     ULTRA_COUNT: 1000,         // 1000連
     COST_ULTRA: 5000,          // 1000連コスト（割引なし＝保証が価値）
     ULTRA_FLOOR: "LR",         // 1000連はLR以上1体確定
+    GIGA_COUNT: 10000,         // 1万連
+    COST_GIGA: 50000,          // 1万連コスト（割引なし）
+    GIGA_FLOOR: "GR",          // 1万連はGR以上1体確定
+    TERA_COUNT: 100000,        // 10万連
+    COST_TERA: 500000,         // 10万連コスト（割引なし）
+    TERA_FLOOR: "GR",          // 10万連もGR以上確定（XRだけは天井なしの純運を貫く）
     // 無料回復（プロト用に速め。実機ではゆっくりに調整）
     REGEN_PER: 1,              // 回復量
     REGEN_INTERVAL_MS: 30000,  // 30秒ごと
@@ -258,6 +264,10 @@
   function pullMega()  { return pullBatch(CFG.MEGA_COUNT,  CFG.COST_MEGA,  CFG.MEGA_FLOOR); }
   // 1000連（LR以上1体確定）
   function pullUltra() { return pullBatch(CFG.ULTRA_COUNT, CFG.COST_ULTRA, CFG.ULTRA_FLOOR); }
+  // 1万連（GR以上1体確定）
+  function pullGiga()  { return pullBatch(CFG.GIGA_COUNT,  CFG.COST_GIGA,  CFG.GIGA_FLOOR); }
+  // 10万連（GR以上1体確定。XRは天井なしの純運のまま）
+  function pullTera()  { return pullBatch(CFG.TERA_COUNT,  CFG.COST_TERA,  CFG.TERA_FLOOR); }
 
   // 課金（神石パック）。Web=擬似付与。ネイティブ消費型IAPはあとで iap.js に接続。
   function addGems(n) { S.gems += n; save(); }
@@ -326,6 +336,8 @@
     pullMulti: pullMulti,
     pullMega: pullMega,
     pullUltra: pullUltra,
+    pullGiga: pullGiga,
+    pullTera: pullTera,
     addGems: addGems,
     canAfford: canAfford,
     dexStats: dexStats,

@@ -69,6 +69,10 @@ body{
 .pull-btn.multi{background:linear-gradient(160deg,#ff8a4c,#ff4e7a);}
 .pull-btn.mega{background:linear-gradient(160deg,#a86bff,#6a2fe0);}
 .pull-btn.ultra{background:linear-gradient(135deg,#ffb340,#ff5e9a 45%,#7a5cff 100%);}
+.pull-btn.giga{background:linear-gradient(160deg,#2fd4c4,#0e8f9e);}
+.pull-btn.tera{background:linear-gradient(135deg,#3b3b6e,#12122a 60%,#000);}
+.pull-btn.giga .pb-tag{color:#0e8f9e;}
+.pull-btn.tera .pb-tag{color:#3b3b6e;}
 .pb-t{font-size:19px;}
 .pb-c{font-size:13px; opacity:.95;}
 .pb-tag{position:absolute; top:-9px; right:-4px; background:#fff; color:#ff4e7a;

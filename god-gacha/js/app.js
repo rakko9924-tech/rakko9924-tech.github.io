@@ -27,6 +27,8 @@
     $("#btnMulti").disabled = !G.canAfford(G.CFG.COST_MULTI);
     $("#btnMega").disabled = !G.canAfford(G.CFG.COST_MEGA);
     $("#btnUltra").disabled = !G.canAfford(G.CFG.COST_ULTRA);
+    $("#btnGiga").disabled = !G.canAfford(G.CFG.COST_GIGA);
+    $("#btnTera").disabled = !G.canAfford(G.CFG.COST_TERA);
   }
 
   // ---------- アート（画像 or 絵文字フォールバック）----------
@@ -97,7 +99,7 @@
     const hint = document.createElement("div");
     hint.className = "ball-hint";
     hint.textContent = hasBlack ? "…黒玉…！？ タップで開封"
-      : BIG ? (results.length + "連！ タップで一括開封")
+      : BIG ? (fmt(results.length) + "連！ タップで一括開封")
       : "タップで開封！";
     if (hasBlack) overlay.classList.add("ominous");
     stage.appendChild(hint);
@@ -125,7 +127,7 @@
       results.forEach(function (r) { counts[r.rarity.id] = (counts[r.rarity.id] || 0) + 1; });
       const bar = document.createElement("div");
       bar.className = "result-summary";
-      bar.innerHTML = '<div class="rs-title">' + results.length + "連 結果</div>" +
+      bar.innerHTML = '<div class="rs-title">' + fmt(results.length) + "連 結果</div>" +
         '<div class="rs-tags">' + D.RARITIES.slice().reverse().filter(function (r) { return counts[r.id]; })
           .map(function (r) {
             return '<span class="rs-tag r-' + r.id + '" style="--rc:' + r.color + '">' + r.id + " ×" + counts[r.id] + "</span>";
@@ -153,7 +155,7 @@
     if (truncated > 0) {
       const note = document.createElement("div");
       note.className = "result-note";
-      note.textContent = "ほか " + truncated + "体（レア度の高い順に上位のみ表示・図鑑には全て反映）";
+      note.textContent = "ほか " + fmt(truncated) + "体（レア度の高い順に上位のみ表示・図鑑には全て反映）";
       stage.appendChild(note);
     }
     renderDexMini();
@@ -232,7 +234,9 @@
 
   // ---------- ボタン ----------
   function doPull(kind) {
-    const res = kind === "ultra" ? G.pullUltra()
+    const res = kind === "tera" ? G.pullTera()
+      : kind === "giga" ? G.pullGiga()
+      : kind === "ultra" ? G.pullUltra()
       : kind === "mega" ? G.pullMega()
       : kind === "multi" ? G.pullMulti()
       : G.pullSingle();
@@ -243,6 +247,8 @@
   $("#btnMulti").addEventListener("click", function () { doPull("multi"); });
   $("#btnMega").addEventListener("click", function () { doPull("mega"); });
   $("#btnUltra").addEventListener("click", function () { doPull("ultra"); });
+  $("#btnGiga").addEventListener("click", function () { doPull("giga"); });
+  $("#btnTera").addEventListener("click", function () { doPull("tera"); });
 
   // ---------- リワード動画（無料神石）----------
   const REWARD_GEMS = 30;
