@@ -357,3 +357,8 @@ body{
   background:#1d2230; color:#fff; padding:9px 18px; border-radius:20px; font-size:13px; font-weight:700;
   opacity:0; pointer-events:none; transition:.25s; z-index:60;}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+/* バージョン表記（右下・タブの上・操作不可の小ラベル） */
+.ver-tag{position:fixed; right:8px; bottom:calc(64px + var(--safe-b)); z-index:55;
+  font-size:10px; font-weight:700; color:#99a; background:rgba(255,255,255,.75);
+  padding:2px 8px; border-radius:9px; pointer-events:none;}

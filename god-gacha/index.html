@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>ゴッドガチャ ∞</title>
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
@@ -131,10 +131,15 @@
   <!-- トースト -->
   <div id="toast" class="toast"></div>
 
-  <script src="js/data.js?v=9"></script>
-  <script src="js/gacha.js?v=9"></script>
-  <script src="services.js?v=9"></script>
-  <script src="iap.js?v=9"></script>
-  <script src="js/app.js?v=9"></script>
+  <!-- バージョン表記（常時右下） -->
+  <div id="verTag" class="ver-tag"></div>
+
+  <script>window.APP_VER = "10";</script>
+  <script>document.getElementById("verTag").textContent = "v" + window.APP_VER;</script>
+  <script src="js/data.js?v=10"></script>
+  <script src="js/gacha.js?v=10"></script>
+  <script src="services.js?v=10"></script>
+  <script src="iap.js?v=10"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>

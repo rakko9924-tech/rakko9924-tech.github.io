@@ -8,6 +8,9 @@
   const G = window.Gacha;
   const $ = function (s, el) { return (el || document).querySelector(s); };
   const $$ = function (s, el) { return Array.prototype.slice.call((el || document).querySelectorAll(s)); };
+  // アセットのキャッシュバスター（index.htmlのAPP_VERと連動。スプライト差し替え時に反映させる）
+  const AV = "?v=" + (window.APP_VER || "0");
+  function artURL(key) { return "assets/" + key + ".png" + AV; }
 
   // ---------- ヘッダ・通貨表示 ----------
   function fmt(n) { return n.toLocaleString("ja-JP"); }
@@ -31,7 +34,7 @@
   function artInner(god, emojiClass) {
     // 絵文字はスプライト読み込み失敗時のみ表示（既定は非表示＝結果カード裏に絵文字を出さない）
     return '<span class="emoji ' + (emojiClass || "") + '" style="display:none">' + god.emoji + "</span>" +
-      '<img class="art-img" alt="" loading="lazy" src="assets/' + god.artKey + '.png" ' +
+      '<img class="art-img" alt="" loading="lazy" src="' + artURL(god.artKey) + '" ' +
       'onerror="this.style.display=\'none\'; var e=this.previousElementSibling; if(e)e.style.display=\'\'">';
   }
 
@@ -171,7 +174,7 @@
     h.innerHTML =
       '<div class="hero-rays"></div>' +
       '<div class="hero-badge">' + r.id + "</div>" +
-      '<img class="hero-god" src="assets/' + top.god.artKey + '.png" alt="">' +
+      '<img class="hero-god" src="' + artURL(top.god.artKey) + '" alt="">' +
       '<div class="hero-flair">' + flair + "</div>" +
       '<div class="hero-name">' + top.god.name + "</div>" +
       '<div class="hero-tier">' + r.label + " · " + r.tier + "</div>" +
