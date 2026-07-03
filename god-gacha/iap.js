@@ -10,10 +10,10 @@
 
   // 商品ID → 付与神石数（価格はASCのIAP商品で設定）
   const PACKS = [
-    { id: "com.raito.godgacha.gems100",  gems: 100 },
-    { id: "com.raito.godgacha.gems550",  gems: 550 },
-    { id: "com.raito.godgacha.gems1200", gems: 1200 },
-    { id: "com.raito.godgacha.gems6500", gems: 6500 },
+    { id: "com.raito.godgacha.gems1200",   gems: 1200 },
+    { id: "com.raito.godgacha.gems7000",   gems: 7000 },
+    { id: "com.raito.godgacha.gems16000",  gems: 16000 },
+    { id: "com.raito.godgacha.gems120000", gems: 120000 },
   ];
   const BY_ID = {}; PACKS.forEach((p) => (BY_ID[p.id] = p));
 

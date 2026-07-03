@@ -209,10 +209,10 @@
   const Purchases = (window.Services && window.Services.Purchases) || null;
   // 商品ID → 表示情報（価格はストアから取得・無ければ参考表示）
   const PACKS = [
-    { id: "com.raito.godgacha.gems100",  gems: 100,  fallback: "¥160",   tag: "" },
-    { id: "com.raito.godgacha.gems550",  gems: 550,  fallback: "¥800",   tag: "+10%" },
-    { id: "com.raito.godgacha.gems1200", gems: 1200, fallback: "¥1,600", tag: "+20% お得" },
-    { id: "com.raito.godgacha.gems6500", gems: 6500, fallback: "¥8,000", tag: "+30% 大量" },
+    { id: "com.raito.godgacha.gems1200",   gems: 1200,   fallback: "¥160",   tag: "" },
+    { id: "com.raito.godgacha.gems7000",   gems: 7000,   fallback: "¥800",   tag: "+17%" },
+    { id: "com.raito.godgacha.gems16000",  gems: 16000,  fallback: "¥1,600", tag: "+33% お得" },
+    { id: "com.raito.godgacha.gems120000", gems: 120000, fallback: "¥8,000", tag: "+100% 大量" },
   ];
   function renderShop() {
     const wrap = $("#shopList"); wrap.innerHTML = "";
