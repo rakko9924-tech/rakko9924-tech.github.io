@@ -262,6 +262,7 @@
             (n > 1 ? '<span class="dx">×' + n + "</span>" : "")
           : '<span class="de">❔</span><span class="dn">？？？</span>';
         cell.title = n ? (gd.name + "（" + gd.yomi + "）" + gd.desc) : "未発見";
+        cell.addEventListener("click", function () { openGodModal(gd, r, n); });
         grid.appendChild(cell);
       });
       wrap.appendChild(grid);
@@ -270,10 +271,47 @@
     $("#dexPct").textContent = "コンプ率 " + st.pct.toFixed(1) + "%（" + st.owned + "/" + st.total + "）";
   }
   function ratePct(r) {
+    if (r.id === "XR") return "0.000001%（1/1億）"; // XRは黒玉+潜伏で実効1/1億
     const w = r.weight * 100;
     if (w >= 1) return w.toFixed(1) + "%";
     if (w >= 0.001) return w.toFixed(3) + "%";
-    return (r.weight === 1e-8) ? "0.000001%（1/1億）" : w.toExponential(0) + "%";
+    return w.toExponential(0) + "%";
+  }
+
+  // ---------- 図鑑：キャラ詳細モーダル（大きく表示＋フレーバー）----------
+  const godModal = $("#godModal");
+  function openGodModal(god, r, n) {
+    if (!godModal) return;
+    if (n) {
+      godModal.className = "godmodal show r-" + r.id + (r.aurora ? " aurora" : "") + (r.glitch ? " glitch" : "");
+      godModal.style.setProperty("--rc", r.color);
+      godModal.style.setProperty("--rg", r.glow);
+      godModal.innerHTML =
+        '<div class="gm-card" role="dialog">' +
+          '<div class="gm-badge">' + r.id + " " + r.label + "</div>" +
+          (n > 1 ? '<div class="gm-count">×' + n + "</div>" : "") +
+          '<div class="gm-art">' + artInner(god) + "</div>" +
+          '<div class="gm-name">' + god.name + "</div>" +
+          '<div class="gm-yomi">' + god.yomi + " · " + r.tier + "</div>" +
+          '<div class="gm-desc">' + god.desc + "</div>" +
+          '<button class="gm-close">とじる</button>' +
+        "</div>";
+    } else {
+      godModal.className = "godmodal show locked";
+      godModal.innerHTML =
+        '<div class="gm-card" role="dialog">' +
+          '<div class="gm-art gm-unknown">❔</div>' +
+          '<div class="gm-name">？？？</div>' +
+          '<div class="gm-desc">まだ発見していない神。ガチャで引き当てよう。</div>' +
+          '<button class="gm-close">とじる</button>' +
+        "</div>";
+    }
+  }
+  function closeGodModal() { if (godModal) godModal.className = "godmodal"; }
+  if (godModal) {
+    godModal.addEventListener("click", function (e) {
+      if (e.target === godModal || (e.target.classList && e.target.classList.contains("gm-close"))) closeGodModal();
+    });
   }
 
   function renderDexMini() {
