@@ -14,6 +14,12 @@
     COST_MULTI: 50,            // 10連コスト（割引なし＝保証が価値）
     MULTI_COUNT: 10,
     MULTI_FLOOR: "SR",         // 10連はSR以上1体確定
+    MEGA_COUNT: 100,           // 100連
+    COST_MEGA: 450,            // 100連コスト（10%OFF）
+    MEGA_FLOOR: "UR",          // 100連はUR以上1体確定
+    ULTRA_COUNT: 1000,         // 1000連
+    COST_ULTRA: 4000,          // 1000連コスト（20%OFF）
+    ULTRA_FLOOR: "LR",         // 1000連はLR以上1体確定
     // 無料回復（プロト用に速め。実機ではゆっくりに調整）
     REGEN_PER: 1,              // 回復量
     REGEN_INTERVAL_MS: 30000,  // 30秒ごと
@@ -217,24 +223,40 @@
     return { ok: true, results: res };
   }
 
-  // 10連（SR以上1体確定）
-  function pullMulti() {
+  // まとめ引き。10連ブロックごとに SR 以上を1体保証（10連と同じ）。
+  // さらに全体の最後の枠で headlineFloor（例：100連ならUR以上）を保証。
+  function pullBatch(count, cost, headlineFloor) {
     tickRegen();
-    if (!canAfford(CFG.COST_MULTI)) return { ok: false, reason: "gems" };
-    spend(CFG.COST_MULTI);
+    if (!canAfford(cost)) return { ok: false, reason: "gems" };
+    spend(cost);
     const out = [];
-    let maxRank = -1;
-    for (let i = 0; i < CFG.MULTI_COUNT; i++) {
-      // 最後の1枠まで SR 未満なら、最終枠で SR 以上を保証
-      const last = i === CFG.MULTI_COUNT - 1;
-      const needFloor = last && maxRank < D.BY_ID[CFG.MULTI_FLOOR].rank;
-      const r = drawOne(needFloor ? { guaranteeMinRank: D.BY_ID[CFG.MULTI_FLOOR].rank } : undefined);
+    const srRank = D.BY_ID[CFG.MULTI_FLOOR].rank;
+    let maxRank = -1, blockMax = -1;
+    for (let i = 0; i < count; i++) {
+      const pos = i % CFG.MULTI_COUNT;
+      if (pos === 0) blockMax = -1;
+      const lastInBlock = pos === CFG.MULTI_COUNT - 1;
+      let floor = -1;
+      if (lastInBlock && blockMax < srRank) floor = srRank;      // 各10連でSR以上確定
+      if (i === count - 1 && headlineFloor) {                    // 全体の目玉保証
+        const hr = D.BY_ID[headlineFloor].rank;
+        if (maxRank < hr) floor = Math.max(floor, hr);
+      }
+      const r = drawOne(floor >= 0 ? { guaranteeMinRank: floor } : undefined);
       maxRank = Math.max(maxRank, r.rarity.rank);
+      blockMax = Math.max(blockMax, r.rarity.rank);
       out.push(r);
     }
     save();
     return { ok: true, results: out };
   }
+
+  // 10連（SR以上1体確定）
+  function pullMulti() { return pullBatch(CFG.MULTI_COUNT, CFG.COST_MULTI, null); }
+  // 100連（UR以上1体確定）
+  function pullMega()  { return pullBatch(CFG.MEGA_COUNT,  CFG.COST_MEGA,  CFG.MEGA_FLOOR); }
+  // 1000連（LR以上1体確定）
+  function pullUltra() { return pullBatch(CFG.ULTRA_COUNT, CFG.COST_ULTRA, CFG.ULTRA_FLOOR); }
 
   // 課金（神石パック）。Web=擬似付与。ネイティブ消費型IAPはあとで iap.js に接続。
   function addGems(n) { S.gems += n; save(); }
@@ -301,6 +323,8 @@
     msToNextRegen: msToNextRegen,
     pullSingle: pullSingle,
     pullMulti: pullMulti,
+    pullMega: pullMega,
+    pullUltra: pullUltra,
     addGems: addGems,
     canAfford: canAfford,
     dexStats: dexStats,

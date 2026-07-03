@@ -57,9 +57,9 @@ body{
 .banner-sub{font-size:11.5px; opacity:.95; margin-top:6px; text-shadow:0 1px 4px rgba(0,0,0,.6);}
 
 /* ---------- 引くボタン ---------- */
-.pull-area{display:flex; gap:12px; margin-top:16px;}
+.pull-area{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
 .pull-btn{
-  flex:1; border:0; border-radius:16px; padding:16px 10px; color:#fff; cursor:pointer;
+  border:0; border-radius:16px; padding:16px 10px; color:#fff; cursor:pointer;
   display:flex; flex-direction:column; align-items:center; gap:4px; position:relative;
   font-weight:800; box-shadow:0 6px 16px rgba(0,0,0,.14); transition:transform .08s;
 }
@@ -67,10 +67,15 @@ body{
 .pull-btn:disabled{filter:grayscale(.7) opacity(.5); pointer-events:none;}
 .pull-btn.single{background:linear-gradient(160deg,#46b1ff,#2f7ff0);}
 .pull-btn.multi{background:linear-gradient(160deg,#ff8a4c,#ff4e7a);}
+.pull-btn.mega{background:linear-gradient(160deg,#a86bff,#6a2fe0);}
+.pull-btn.ultra{background:linear-gradient(135deg,#ffb340,#ff5e9a 45%,#7a5cff 100%);}
 .pb-t{font-size:19px;}
 .pb-c{font-size:13px; opacity:.95;}
 .pb-tag{position:absolute; top:-9px; right:-4px; background:#fff; color:#ff4e7a;
-  font-size:10px; padding:2px 7px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.15);}
+  font-size:10px; padding:2px 7px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.15);
+  white-space:nowrap;}
+.pull-btn.mega .pb-tag{color:#6a2fe0;}
+.pull-btn.ultra .pb-tag{color:#c23f7a;}
 .regen-line{text-align:center; color:var(--sub); font-size:12px; margin-top:14px;}
 .reward-btn{display:block; margin:12px auto 0; border:0; border-radius:14px; padding:11px 20px;
   background:linear-gradient(160deg,#34c759,#1ba94c); color:#fff; font-weight:800; font-size:14px;
@@ -198,6 +203,8 @@ body{
 .overlay.ominous{background:rgba(2,2,8,.9);} /* 黒玉の不気味演出 */
 .ball-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; width:100%; max-width:460px;}
 .ball-grid.single{grid-template-columns:1fr; max-width:200px; margin:0 auto;}
+.ball-grid.many{grid-template-columns:repeat(6,1fr); gap:8px;}
+.ball-grid.many .ball-item img{max-width:60px;}
 .ball-item{position:relative; display:flex; align-items:center; justify-content:center;}
 .ball-item::before{content:""; position:absolute; width:86%; aspect-ratio:1; border-radius:50%;
   background:radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 68%);}
@@ -241,7 +248,26 @@ body{
   animation:hintPulse 1s ease-in-out infinite; text-shadow:0 1px 4px rgba(0,0,0,.6);}
 .result-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; width:100%;}
 .result-grid.single{grid-template-columns:1fr; max-width:200px; margin:0 auto;}
+.result-grid.dense{grid-template-columns:repeat(6,1fr); gap:6px;}
+/* 大量連はカードをコンパクトに（名前1行・ふりがな/還元は省略） */
+.result-grid.dense .card{padding:6px 3px 7px; border-width:1.5px; border-radius:10px;}
+.result-grid.dense .card .art{height:42px; border-radius:9px;}
+.result-grid.dense .card .emoji{font-size:28px;}
+.result-grid.dense .card .cname{font-size:9px; margin-top:4px; line-height:1.15;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.result-grid.dense .card .ctier,.result-grid.dense .card .refund{display:none;}
+.result-grid.dense .card .rbadge{font-size:8px; padding:0 5px; top:4px; left:4px;}
+.result-grid.dense .card .newt{font-size:7px; padding:0 4px; bottom:3px; right:3px;}
 .result-grid .card.pop{animation:pop .28s ease both;}
+/* 大量連の集計バー */
+.result-summary{width:100%; max-width:460px; background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:10px 12px;}
+.rs-title{color:#fff; font-weight:800; font-size:14px; margin-bottom:8px; text-align:center;}
+.rs-tags{display:flex; flex-wrap:wrap; gap:6px; justify-content:center;}
+.rs-tag{font-size:12px; font-weight:800; color:#fff; padding:3px 9px; border-radius:9px;
+  background:var(--rc,#888); box-shadow:0 2px 6px rgba(0,0,0,.25);}
+.result-note{width:100%; max-width:460px; text-align:center; color:#fff; opacity:.8;
+  font-size:11px; margin-top:2px;}
 @keyframes pop{0%{transform:scale(.4); opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1); opacity:1}}
 .stage-close{margin-top:4px; background:#fff; border:0; border-radius:12px; padding:10px 22px;
   font-weight:800; color:var(--ink); cursor:pointer;}

@@ -22,6 +22,8 @@
     // ボタンの可否
     $("#btnSingle").disabled = !G.canAfford(G.CFG.COST_SINGLE);
     $("#btnMulti").disabled = !G.canAfford(G.CFG.COST_MULTI);
+    $("#btnMega").disabled = !G.canAfford(G.CFG.COST_MEGA);
+    $("#btnUltra").disabled = !G.canAfford(G.CFG.COST_ULTRA);
   }
 
   // ---------- アート（画像 or 絵文字フォールバック）----------
@@ -67,21 +69,33 @@
     overlay.classList.remove("big", "legendary", "cosmic", "concept");
     const top = results.reduce(function (m, x) { return x.rarity.rank > m.rarity.rank ? x : m; }, results[0]);
     const hasBlack = results.some(function (r) { return r.ball === "black"; });
+    const BIG = results.length > 12;
 
     // --- Phase1: ガチャ玉を出す（色＝最低保証のテーザー）---
+    // 大量連は玉を全部は出さず、目立つ玉（高レア・黒玉）を最大24個だけ見せる。
+    let ballList = results;
+    if (BIG) {
+      ballList = results.slice().sort(function (a, b) {
+        const ra = a.ball === "black" ? 999 : a.rarity.rank;
+        const rb = b.ball === "black" ? 999 : b.rarity.rank;
+        return rb - ra;
+      }).slice(0, 24);
+    }
     const bg = document.createElement("div");
-    bg.className = "ball-grid" + (results.length === 1 ? " single" : "");
-    results.forEach(function (res, i) {
+    bg.className = "ball-grid" + (results.length === 1 ? " single" : "") + (BIG ? " many" : "");
+    ballList.forEach(function (res, i) {
       const b = document.createElement("div");
       b.className = "ball-item ball-" + (res.ball || "white");
-      b.style.animationDelay = (i * 55) + "ms";
+      b.style.animationDelay = (Math.min(i, 20) * 55) + "ms";
       b.innerHTML = '<img src="assets/ball_' + (res.ball || "white") + '.png" alt="">';
       bg.appendChild(b);
     });
     stage.appendChild(bg);
     const hint = document.createElement("div");
     hint.className = "ball-hint";
-    hint.textContent = hasBlack ? "…黒玉…！？ タップで開封" : "タップで開封！";
+    hint.textContent = hasBlack ? "…黒玉…！？ タップで開封"
+      : BIG ? (results.length + "連！ タップで一括開封")
+      : "タップで開封！";
     if (hasBlack) overlay.classList.add("ominous");
     stage.appendChild(hint);
 
@@ -100,15 +114,45 @@
 
   function buildGrid(results, top) {
     stage.innerHTML = "";
+    const BIG = results.length > 12;
+
+    // 大量連はレア度別の集計バーを上に出す
+    if (BIG) {
+      const counts = {};
+      results.forEach(function (r) { counts[r.rarity.id] = (counts[r.rarity.id] || 0) + 1; });
+      const bar = document.createElement("div");
+      bar.className = "result-summary";
+      bar.innerHTML = '<div class="rs-title">' + results.length + "連 結果</div>" +
+        '<div class="rs-tags">' + D.RARITIES.slice().reverse().filter(function (r) { return counts[r.id]; })
+          .map(function (r) {
+            return '<span class="rs-tag r-' + r.id + '" style="--rc:' + r.color + '">' + r.id + " ×" + counts[r.id] + "</span>";
+          }).join("") + "</div>";
+      stage.appendChild(bar);
+    }
+
     const grid = document.createElement("div");
-    grid.className = "result-grid" + (results.length === 1 ? " single" : "");
+    grid.className = "result-grid" + (results.length === 1 ? " single" : "") + (BIG ? " dense" : "");
     stage.appendChild(grid);
-    results.forEach(function (res, i) {
+
+    // 大量連はレア度降順で並べ、表示は上位120体まで（図鑑には全件反映済み）
+    let list = results, truncated = 0;
+    const CAP = 120;
+    if (BIG) {
+      list = results.slice().sort(function (a, b) { return b.rarity.rank - a.rarity.rank; });
+      if (list.length > CAP) { truncated = list.length - CAP; list = list.slice(0, CAP); }
+    }
+    list.forEach(function (res, i) {
       const c = card(res.god, res.rarity, { isNew: res.isNew, refund: res.refund });
-      c.style.animationDelay = (i * 70) + "ms";
+      c.style.animationDelay = (Math.min(i, 30) * (BIG ? 22 : 70)) + "ms";
       c.classList.add("pop");
       grid.appendChild(c);
     });
+    if (truncated > 0) {
+      const note = document.createElement("div");
+      note.className = "result-note";
+      note.textContent = "ほか " + truncated + "体（レア度の高い順に上位のみ表示・図鑑には全て反映）";
+      stage.appendChild(note);
+    }
     renderDexMini();
   }
 
@@ -185,12 +229,17 @@
 
   // ---------- ボタン ----------
   function doPull(kind) {
-    const res = kind === "multi" ? G.pullMulti() : G.pullSingle();
+    const res = kind === "ultra" ? G.pullUltra()
+      : kind === "mega" ? G.pullMega()
+      : kind === "multi" ? G.pullMulti()
+      : G.pullSingle();
     if (!res.ok) { toast("神石が たりない"); return; }
     playResults(res.results);
   }
   $("#btnSingle").addEventListener("click", function () { doPull("single"); });
   $("#btnMulti").addEventListener("click", function () { doPull("multi"); });
+  $("#btnMega").addEventListener("click", function () { doPull("mega"); });
+  $("#btnUltra").addEventListener("click", function () { doPull("ultra"); });
 
   // ---------- リワード動画（無料神石）----------
   const REWARD_GEMS = 30;
