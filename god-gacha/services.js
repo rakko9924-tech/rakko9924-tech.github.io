@@ -15,10 +15,10 @@
   // 実AdMob ID（siosen323 / pub-1975437480047330）。AdMobでアプリ/ユニット作成後に記入。
   // 実IDが入るまで ADS_READY=false（テストIDは絶対に本番へ出さない §1.2）。
   const AD_UNITS = {
-    interstitial: "ca-app-pub-1975437480047330/0000000000", // TODO: ゴッドガチャ Interstitial (iOS)
-    rewarded:     "ca-app-pub-1975437480047330/0000000000", // TODO: ゴッドガチャ Rewarded (iOS)
+    interstitial: "ca-app-pub-1975437480047330/7919659090", // ゴッドガチャ∞ godgacha-interstitial-ios（実ID）
+    rewarded:     "ca-app-pub-1975437480047330/5568029161", // ゴッドガチャ∞ godgacha-rewarded-ios（実ID）
   };
-  const ADS_READY = false;   // 実ID投入後に true（§1.2）。app id = ca-app-pub-1975437480047330~XXXX
+  const ADS_READY = true;    // 実ID投入済み。app id = ca-app-pub-1975437480047330~9089270538
   const AD_TESTING = false;  // 本番では絶対 false
 
   const INTER_EVERY = 3;     // ガチャ結果クローズ何回ごとにインタースティシャル

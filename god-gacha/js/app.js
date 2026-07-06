@@ -479,11 +479,6 @@
     refreshHud(); updateExchangeUI();
   });
 
-  // ---------- 開発用 ----------
-  $("#devReset").addEventListener("click", function () {
-    if (confirm("セーブを初期化しますか？")) { G.devReset(); refreshHud(); renderDexMini(); toast("リセット完了"); }
-  });
-
   function refreshPoint() {
     $("#gpCount2").textContent = fmt(G.gp());
     $("#spinCount").textContent = fmt(G.totalSpins());
