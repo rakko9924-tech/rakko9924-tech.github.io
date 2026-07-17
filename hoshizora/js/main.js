@@ -10,7 +10,8 @@ import { suitGlyph, charSVG, airshipSVG, lampSVG } from './art.js';
 import { initSfx, resumeAudio, play, playWinJingle, playTaskDone, playFail, setSfxEnabled, sfxEnabled } from './sfx.js';
 import { initLang, currentLang, switchLang, t, tt } from './i18n.js';
 import * as store from './storage.js';
-import { initAds, showInterstitial, showRewardAd } from './ads.js';
+import { initAds, showInterstitial, showRewardAd, showBanner, hideBanner } from './ads.js';
+import { initIAP, buyRemoveAds, restorePurchases, iapAvailable } from './iap.js';
 import {
   connectRoom, disconnectRoom, sendStart, sendAct, sendEnd,
   makeRoomCode, seatsOnline,
@@ -54,9 +55,20 @@ function posOf(seatIdx) { return (seatIdx - mySeat + 4) % 4; }
 async function boot() {
   initLang();
   buildStars();
+  // ストアスクショ撮影用フック（?shot=title|play|map|lobby|result [&lang=en]）
+  const q = new URLSearchParams(location.search);
+  if (q.get('shot')) { shotMode(q.get('shot'), q.get('lang') || 'ja'); return; }
   showTitle();
   await initSfx();
   initAds();
+  initIAP();
+  // 広告削除購入者への毎日ヒント1枚（IAP特典）
+  try {
+    if (store.isAdFree()) {
+      const k = 'hz-freehint-' + todayKey();
+      if (!localStorage.getItem(k)) { localStorage.setItem(k, '1'); store.addHints(1); }
+    }
+  } catch (e) {}
 }
 
 function buildStars() {
@@ -68,6 +80,57 @@ function buildStars() {
     html += `<span class="s" style="left:${x}%;top:${y}%;font-size:${size}px;animation-delay:${delay}s">✦</span>`;
   }
   bg.innerHTML = html;
+}
+
+// ---- スクショ撮影モード（ストア用。決定論の静止画面を組み立てる） -------------
+
+function shotMode(kind, lang) {
+  switchLang(lang);
+  document.documentElement.classList.add('shot-mode');
+  if (kind === 'title') { showTitle(); return; }
+  if (kind === 'iap') {
+    // IAP審査用スクショ: 購入行が見える設定画面（Capacitor/StoreKitを疑似有効化）
+    window.Capacitor = { isNativePlatform: () => true };
+    window.CdvPurchase = {};
+    showSettings(); return;
+  }
+  if (kind === 'map') {
+    try {
+      const cleared = {}; for (let i = 1; i <= 11; i++) cleared[i] = { clearedAt: 1 };
+      localStorage.setItem('hz-progress-v1', JSON.stringify({ cleared, attempts: {}, lang }));
+    } catch (e) {}
+    showMap(); return;
+  }
+  if (kind === 'lobby') {
+    roomCode = 'MIMI'; mySeat = 0; lobbySel = 12;
+    // seatsOnline はネットワーク由来なのでローカル描画用に上書きできないため、
+    // showLobby と同等の画面を直接組み立てる代わりに seats を偽装する
+    window.__shotSeats = [true, true, true, false];
+    showLobby(); return;
+  }
+  if (kind === 'play' || kind === 'result') {
+    curMission = missionById(12);
+    isDailyRun = false;
+    aiSigTrick = -1;
+    state = newGame(curMission, 777003);
+    optimizeAssignment(state);
+    if (kind === 'play') {
+      // 2トリック+2手だけ決定論で進める（場に2枚ある状態で止める）
+      for (let i = 0; i < 10; i++) {
+        if (state.currentTrick.length === 0) doAISignals();
+        playCard(state, currentPlayer(state), chooseCard(makeView(state, currentPlayer(state))));
+      }
+      showPlay();
+      busy = false; renderAll();
+      return;
+    }
+    // result: 勝利画面
+    state.status = 'won';
+    state.tasks.forEach(tk => { tk.done = true; });
+    showResult(true);
+    return;
+  }
+  showTitle();
 }
 
 // ---- 画面遷移 ---------------------------------------------------------------
@@ -159,6 +222,7 @@ function showMap() {
       tap(); showMissionSheet(id);
     };
   });
+  if (!store.isAdFree()) showBanner();
   requestAnimationFrame(() => { drawConstellation(s, maxCleared); scrollToCurrent(s); });
   window.addEventListener('resize', () => drawConstellation(s, maxCleared), { once: true });
 }
@@ -373,6 +437,7 @@ function showPlay() {
       </div>
     </div>
   `, 'play-screen');
+  hideBanner();
   document.getElementById('b-menu').onclick = openPauseMenu;
   document.getElementById('lamp-fab').onclick = onLampTap;
   document.getElementById('hint-fab').onclick = onHintTap;
@@ -889,6 +954,7 @@ function showResult(won) {
     </div>
   `, won ? 'result-screen' : 'result-screen fail');
   if (won) { playWinJingle(); starRain(); } else { shootingStar(); }
+  if (!store.isAdFree()) showBanner();
   // デイリー勝利: 報酬2倍ボタン（広告でヒント券をもう1枚）
   if (won && isDailyRun && dailyFirstWin && !store.hintsFull()) {
     const btns = s.querySelector('.title-btns');
@@ -1038,6 +1104,7 @@ function showLobby() {
 }
 
 function seatsNow() {
+  if (window.__shotSeats) return window.__shotSeats.slice(); // スクショモード用
   const a = seatsOnline();
   if (mySeat >= 0) a[mySeat] = true;
   return a;
@@ -1179,6 +1246,8 @@ function showSettings() {
       <div class="menu-list">
         <button id="s-se">${t('se')}<span class="toggle ${sfxEnabled() ? 'on' : ''}" id="tg-se"></span></button>
         <div class="menu-static">${t('lang')}<span class="seg"><span id="lg-ja" class="${currentLang() === 'ja' ? 'on' : ''}">日本語</span><span id="lg-en" class="${currentLang() === 'en' ? 'on' : ''}">EN</span></span></div>
+        ${iapAvailable() && !store.isAdFree() ? `<button id="s-noads">⭐ ${ja ? '広告を消す ¥500（毎日ヒント+1特典つき）' : 'Remove ads ¥500'}<span class="chev">›</span></button>` : ''}
+        ${iapAvailable() ? `<button id="s-restore">${ja ? '購入を復元' : 'Restore purchases'}<span class="chev">›</span></button>` : ''}
         <button id="s-howto">${t('howto')}<span class="chev">›</span></button>
         <button id="s-reset" class="danger">${ja ? '進行をリセット' : 'Reset progress'}<span class="chev">›</span></button>
       </div>
@@ -1193,6 +1262,10 @@ function showSettings() {
   const setL = l => { if (l !== currentLang()) { tap(); switchLang(l); showSettings(); } };
   s.querySelector('#lg-ja').onclick = () => setL('ja');
   s.querySelector('#lg-en').onclick = () => setL('en');
+  const na = s.querySelector('#s-noads');
+  if (na) na.onclick = () => { tap(); buyRemoveAds(() => toast(currentLang() === 'ja' ? 'この端末では購入できません' : 'Purchases unavailable')); };
+  const rs2 = s.querySelector('#s-restore');
+  if (rs2) rs2.onclick = () => { tap(); restorePurchases(); toast(currentLang() === 'ja' ? '購入を確認しています…' : 'Restoring…'); };
   s.querySelector('#s-howto').onclick = () => { tap(); showHowto(!!state); };
   s.querySelector('#s-reset').onclick = () => { tap(); confirmReset(); };
 }

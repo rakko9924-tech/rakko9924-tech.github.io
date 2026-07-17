@@ -413,3 +413,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+/* ストアスクショ撮影モード（headless Chromeの最小ウィンドウ幅500px対策） */
+html.shot-mode #app { width: 414px; height: 896px; position: fixed; left: 0; top: 0; }
+html.shot-mode #toast { display: none !important; }
