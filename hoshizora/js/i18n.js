@@ -2,7 +2,7 @@
 import { getLang, setLang } from './storage.js';
 
 export const STR = {
-  appTitle: { ja: '星空探検隊', en: 'Starlight Expedition' },
+  appTitle: { ja: 'ほしぞら探検隊', en: 'Starlight Expedition' },
   subtitle: { ja: 'みんなで挑む 協力カードゲーム', en: 'A cooperative trick-taking adventure' },
   start: { ja: '冒険に出発', en: 'Set Sail' },
   howto: { ja: 'あそびかた', en: 'How to Play' },
@@ -38,6 +38,23 @@ export const STR = {
   lastViolation: { ja: '「最後」のおねがいを最後にできなかった…', en: "The 'last' promise wasn't completed last…" },
   tasksIncomplete: { ja: '10トリックでは足りなかった…', en: 'Ran out of tricks…' },
   attempts: { ja: '挑戦回数', en: 'Attempts' },
+  hint: { ja: 'ヒント', en: 'Hint' },
+  hintReco: { ja: 'おすすめの札はこれ！', en: 'This is the best card!' },
+  hintEmpty: { ja: 'ヒントがなくなりました', en: 'Out of hints' },
+  hintWatch: { ja: '広告を見てヒントを1回ふやす', en: 'Watch an ad for 1 more hint' },
+  hintGot: { ja: 'ヒントがふえました！', en: 'You got a hint!' },
+  revenge: { ja: '同じ配札でリベンジ', en: 'Revenge with the same deal' },
+  revengeAd: { ja: '▶ 同じ配札でリベンジ（広告）', en: '▶ Same deal revenge (ad)' },
+  skipNight: { ja: '▶ 流れ星に乗って次の夜へ（広告）', en: '▶ Ride a shooting star to the next night (ad)' },
+  reward2x: { ja: '▶ 報酬2倍（広告）', en: '▶ Double reward (ad)' },
+  gotTicket: { ja: 'ヒント券を手に入れた！', en: 'Got a hint ticket!' },
+  hintNotTurn: { ja: 'あなたの番に使えます', en: 'Use it on your turn' },
+  daily: { ja: '今日の挑戦', en: 'Daily Challenge' },
+  dailyDesc: { ja: '毎日かわる特別な配札に挑戦しよう', en: 'A special deal that changes every day' },
+  dailyClear: { ja: '今日の挑戦 達成！', en: 'Daily Challenge complete!' },
+  dailyDone: { ja: '今日はクリアずみ', en: 'Cleared today' },
+  streak: { ja: '連続', en: 'streak' },
+  later: { ja: 'あとで', en: 'Later' },
 };
 
 let lang = 'ja';

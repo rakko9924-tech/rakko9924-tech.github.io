@@ -10,6 +10,7 @@ import { suitGlyph, charSVG, airshipSVG, lampSVG } from './art.js';
 import { initSfx, resumeAudio, play, playWinJingle, playTaskDone, playFail, setSfxEnabled, sfxEnabled } from './sfx.js';
 import { initLang, currentLang, switchLang, t, tt } from './i18n.js';
 import * as store from './storage.js';
+import { initAds, showInterstitial, showRewardAd } from './ads.js';
 
 const app = document.getElementById('app');
 const fxLayer = document.getElementById('fx-layer');
@@ -21,6 +22,12 @@ let attemptSeed = 1;   // リトライ用シード
 let busy = false;      // AI処理中などのロック
 let lifted = null;     // 手札で持ち上げ中のカード
 let pendingLeaderTimer = null;
+let hintCard = null;   // ヒントでおすすめ中の札
+let isDailyRun = false; // デイリーチャレンジ中か
+let clearsThisSession = 0; // インタースティシャル頻度制御
+let lastAdAt = 0;          // 直近の全画面広告時刻（120秒クールダウン）
+let revengeUsed = false;   // 「同じ配札でリベンジ」は1配札1回まで
+let failsThisMission = 0;  // 同じ夜の連続失敗数（3回で救済スキップ提示）
 
 // ---- 起動 -------------------------------------------------------------------
 
@@ -29,6 +36,7 @@ async function boot() {
   buildStars();
   showTitle();
   await initSfx();
+  initAds();
 }
 
 function buildStars() {
@@ -64,9 +72,13 @@ function showTitle() {
   const s = setScreen(`
     <div class="title-art"></div>
     <div class="title-body">
-      <div class="logo">星空探検隊<span class="en">STARLIGHT EXPEDITION</span></div>
+      <div class="logo">ほしぞら探検隊<span class="en">STARLIGHT EXPEDITION</span></div>
       <div class="title-btns">
         <button class="btn primary" id="b-start">${contLabel}</button>
+        <button class="btn daily-btn" id="b-daily">
+          <span class="d-ic">${dailyCleared() ? '✅' : '☀️'}</span>${t('daily')}
+          ${dailyStreakLabel()}
+        </button>
         <button class="btn" id="b-map">${t('missionSelect')}</button>
         <div class="btn-row">
           <button class="btn ghost" id="b-howto">${t('howto')}</button>
@@ -77,6 +89,7 @@ function showTitle() {
     </div>
   `, 'title-screen');
   s.querySelector('#b-start').onclick = () => { tap(); startMission((cont ? maxId + 1 : 1)); };
+  s.querySelector('#b-daily').onclick = () => { tap(); startDaily(); };
   s.querySelector('#b-map').onclick = () => { tap(); showMap(); };
   s.querySelector('#b-howto').onclick = () => { tap(); showHowto(false); };
   s.querySelector('#b-settings').onclick = () => { tap(); showSettings(); };
@@ -157,6 +170,13 @@ function lockSVG() {
   return `<svg class="bead-lock" viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1zm2 0h6V8a3 3 0 0 0-6 0v2z" fill="currentColor"/></svg>`;
 }
 
+function dailyCleared() { return store.getDaily()[todayKey()] === 'won'; }
+function dailyStreakLabel() {
+  const st = store.dailyStreak(todayKey());
+  if (st <= 0) return '';
+  return `<span class="d-streak">🔥${st}</span>`;
+}
+
 function subLabel(m) {
   const n = m.tasks.count;
   const ja = currentLang() === 'ja';
@@ -201,16 +221,67 @@ function showMissionSheet(id) {
 // ---- ミッション開始 ---------------------------------------------------------
 
 function startMission(id) {
+  isDailyRun = false;
   curMission = missionById(id);
   attemptSeed = (id * 100000 + Date.now() % 90000) >>> 0;
+  failsThisMission = 0;
+  newDeal();
+}
+
+// ---- デイリーチャレンジ（日替わり固定配札。全員同じ問題に挑む） ---------------
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function hashStr(s) {
+  let h = 2166136261 >>> 0;
+  for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function dailyMission(key) {
+  const h = hashStr(key);
+  const count = 3 + (h % 3); // 3〜5
+  const ordered = ((h >> 4) % 2 === 0) ? 0 : Math.min(2, count - 1);
+  const MODS = [[], [], [{ key: 'signal_limit', max: 1 }], [{ key: 'no_comet_on_task' }],
+    [{ key: 'max_win_streak', streak: 2 }], [{ key: 'all_members_win' }]];
+  return {
+    id: 'daily',
+    title: { ja: '今日の挑戦', en: 'Daily Challenge' },
+    intro: {
+      ja: '今夜だけの特別な配札。同じ夜空の下、みんなが同じ問題に挑んでいる。',
+      en: 'A special deal for tonight only — everyone faces the same sky.',
+    },
+    difficulty: 5,
+    tasks: { count, orderedCount: ordered, lastTag: false, assign: 'choice' },
+    modifiers: MODS[(h >> 8) % MODS.length],
+  };
+}
+
+function startDaily() {
+  isDailyRun = true;
+  curMission = dailyMission(todayKey());
+  attemptSeed = hashStr('hz-daily-' + todayKey());
+  store.setDaily(todayKey(), 'tried');
   newDeal();
 }
 
 function newDeal() {
-  store.recordAttempt(curMission.id);
-  attemptSeed = (attemptSeed * 1103515245 + 12345) >>> 0;
+  if (!isDailyRun) {
+    store.recordAttempt(curMission.id);
+    attemptSeed = (attemptSeed * 1103515245 + 12345) >>> 0; // リトライは配り直し
+  } // デイリーはシード固定＝同じ配札に再挑戦
+  revengeUsed = false;
   state = newGame(curMission, attemptSeed);
   optimizeAssignment(state); // 作戦会議（担当最適化）
+  showIntroAnim();
+}
+
+// 「同じ配札でリベンジ」: シードを進めず同じ夜を再開（前回の失敗で得た情報が活きる）
+function redealSame() {
+  state = newGame(curMission, attemptSeed);
+  optimizeAssignment(state);
   showIntroAnim();
 }
 
@@ -227,7 +298,7 @@ function showIntroAnim() {
   const html = `
     <div class="overlay show center-mode" id="ov-intro">
       <div class="sheet center">
-        <div style="text-align:center;font-size:12px;color:var(--c-ink-sub);font-weight:700">${ja ? '第' + curMission.id + '夜' : 'Night ' + curMission.id}</div>
+        <div style="text-align:center;font-size:12px;color:var(--c-ink-sub);font-weight:700">${isDailyRun ? '☀️ ' + t('daily') : (ja ? '第' + curMission.id + '夜' : 'Night ' + curMission.id)}</div>
         <h2>${t('missionStart')}</h2>
         <p class="intro" style="margin-bottom:10px">${ja ? 'おねがいの担当' : 'Promise assignments'}</p>
         <div>${taskRows}</div>
@@ -250,7 +321,7 @@ function showPlay() {
   setScreen(`
     <div class="hdr">
       <button class="icon-btn" id="b-menu">≡</button>
-      <div class="title">${currentLang() === 'ja' ? '第' + curMission.id + '夜' : 'Night ' + curMission.id}</div>
+      <div class="title">${isDailyRun ? '☀️ ' + t('daily') : (currentLang() === 'ja' ? '第' + curMission.id + '夜' : 'Night ' + curMission.id)}</div>
       <span class="progress-pill" id="trick-count"></span>
     </div>
     <div class="crew-row" id="crew-row"></div>
@@ -268,11 +339,13 @@ function showPlay() {
       <div class="hand-wrap">
         <div class="hand" id="hand"></div>
         <button class="lamp-fab" id="lamp-fab" aria-label="signal lamp">${lampSVG()}</button>
+        <button class="hint-fab" id="hint-fab" aria-label="hint">✨<span class="hint-count" id="hint-count"></span></button>
       </div>
     </div>
   `, 'play-screen');
   document.getElementById('b-menu').onclick = openPauseMenu;
   document.getElementById('lamp-fab').onclick = onLampTap;
+  document.getElementById('hint-fab').onclick = onHintTap;
   renderAll();
 }
 
@@ -344,7 +417,8 @@ function renderHand() {
   hand.innerHTML = state.hands[0].map(c => {
     const playable = myTurn && legal.includes(c);
     const dim = myTurn && !legal.includes(c);
-    return `<div class="${cardCls(c)} ${playable ? 'playable' : ''} ${dim ? 'dim' : ''} ${lifted === c ? 'lifted' : ''}" data-card="${c}">${cardInner(c)}</div>`;
+    const hinted = myTurn && hintCard === c;
+    return `<div class="${cardCls(c)} ${playable ? 'playable' : ''} ${dim ? 'dim' : ''} ${lifted === c ? 'lifted' : ''} ${hinted ? 'hinted' : ''}" data-card="${c}">${cardInner(c)}</div>`;
   }).join('');
   hand.querySelectorAll('.card').forEach(el => { el.onclick = () => onHandTap(el.dataset.card); });
 }
@@ -364,6 +438,64 @@ function renderLamp() {
   const used = state.signals[0] != null;
   const avail = canSignal(state, 0) && signalableCards(state, 0).length > 0 && !busy;
   fab.className = 'lamp-fab' + (used ? ' used' : (avail ? '' : ' disabled'));
+  const hf = document.getElementById('hint-fab');
+  if (hf) {
+    // ヒントは第6夜（またはデイリー）で解放。序盤は自力で考える楽しさを守る
+    const unlocked = isDailyRun || (typeof curMission.id === 'number' && curMission.id >= 6);
+    hf.style.display = unlocked ? '' : 'none';
+    const myTurn = currentPlayer(state) === 0 && state.status === 'playing' && !busy;
+    hf.className = 'hint-fab' + (myTurn ? '' : ' disabled');
+    const hc = document.getElementById('hint-count');
+    if (hc) hc.textContent = store.getHints();
+  }
+}
+
+// ---- ヒント（AI探索の最善手をおすすめ表示。リワード広告で補充） ----------------
+
+function onHintTap() {
+  if (busy || !state || state.status !== 'playing') return;
+  if (currentPlayer(state) !== 0) { toast(t('hintNotTurn')); play('back'); return; }
+  if (store.getHints() <= 0) { openHintOffer(); return; }
+  store.consumeHint();
+  computeAndShowHint();
+}
+
+function computeAndShowHint() {
+  play('sparkle', { gain: 0.5 });
+  let best;
+  try { best = chooseCard(makeView(state, 0)); }
+  catch (e) { best = legalCards(state, 0)[0]; }
+  hintCard = best;
+  renderHand(); renderLamp();
+  const el = document.querySelector(`.hand .card[data-card="${best}"]`);
+  if (el) burstAtEl(el, 5);
+  toast(`✨ ${t('hintReco')}`);
+}
+
+function openHintOffer() {
+  play('bong', { gain: 0.4 });
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<div class="overlay show center-mode" id="ov-hint"><div class="sheet center">
+    <div style="text-align:center;font-size:34px">✨</div>
+    <h2>${t('hintEmpty')}</h2>
+    <p class="intro">${currentLang() === 'ja' ? 'クルーのソラが、いちばん良い札を教えてくれます。' : 'Sora will show you the best card to play.'}</p>
+    <div class="sheet-btns" style="flex-direction:column">
+      <button class="btn primary" id="h-watch">▶ ${t('hintWatch')}</button>
+      <button class="btn ghost" id="h-later">${t('later')}</button>
+    </div></div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const ov = document.getElementById('ov-hint');
+  ov.querySelector('#h-later').onclick = () => { tap(); ov.remove(); };
+  ov.querySelector('#h-watch').onclick = () => {
+    tap();
+    ov.querySelector('#h-watch').textContent = '…';
+    showRewardAd(() => {
+      store.addHints(3);
+      ov.remove();
+      toast(`🎁 ${t('hintGot')}`);
+      renderLamp();
+    }, () => { ov.remove(); toast(currentLang() === 'ja' ? '広告を読み込めませんでした' : 'Ad not available'); });
+  };
 }
 
 // ---- ゲームループ -----------------------------------------------------------
@@ -435,6 +567,7 @@ function onHandTap(card) {
 function commitPlay(p, card) {
   cancelPendingLeader();
   busy = true;
+  hintCard = null;
   const before = state.history.length;
   playCard(state, p, card);
   play('card', { rate: 0.95 + Math.random() * 0.1 });
@@ -575,28 +708,49 @@ function endGame() {
   cancelPendingLeader();
   busy = false;
   if (state.status === 'won') {
-    store.recordClear(curMission.id);
+    if (isDailyRun) {
+      store.setDaily(todayKey(), 'won');
+      store.addHints(1); // デイリー報酬: ヒント券1枚（リザルトで報酬2倍可）
+    } else {
+      store.recordClear(curMission.id);
+      failsThisMission = 0;
+    }
     showResult(true);
+    // インタースティシャル: 勝利→リザルト描画後のみ。第6夜以降・2夜クリアごと・
+    // 120秒クールダウン・失敗直後とデイリーは出さない（リワード優先の設計）
+    clearsThisSession++;
+    const now = Date.now();
+    if (!store.isAdFree() && !isDailyRun && typeof curMission.id === 'number' &&
+      curMission.id > 5 && clearsThisSession % 2 === 0 && now - lastAdAt > 120000) {
+      setTimeout(async () => { if (await showInterstitial()) lastAdAt = Date.now(); }, 800);
+    }
   } else {
+    if (!isDailyRun) failsThisMission++;
     showResult(false);
   }
 }
 
 function showResult(won) {
   const ja = currentLang() === 'ja';
-  const nextId = curMission.id + 1;
-  const hasNext = nextId <= 50;
+  const nextId = isDailyRun ? -1 : curMission.id + 1;
+  const hasNext = !isDailyRun && nextId <= 50;
   let detail = '';
   if (!won && state.failReason) detail = failDetail(state.failReason);
+  const winTitle = isDailyRun ? t('dailyClear') : t('missionClear');
+  const winDetail = isDailyRun
+    ? (store.dailyStreak(todayKey()) > 1 ? `🔥 ${store.dailyStreak(todayKey())}${ja ? '日連続達成！' : '-day streak!'}` : (ja ? 'また明日も新しい配札が待ってるよ' : 'A new deal awaits tomorrow'))
+    : (hasNext ? (ja ? '第' + nextId + '夜が開放されました' : 'Night ' + nextId + ' unlocked')
+      : (ja ? '全ミッション制覇！おめでとう！' : 'All missions complete! Congratulations!'));
   const s = setScreen(won ? `
-    <div class="emoji">🌟</div>
+    <div class="emoji">${isDailyRun ? '☀️' : '🌟'}</div>
     <div class="crew-dance">${['sora', 'mimi', 'pen', 'koro'].map(c => `<span class="char-mini" style="width:52px;height:52px;background:var(--chara-${c})">${charImg(c)}</span>`).join('')}</div>
-    <h1>${t('missionClear')}</h1>
+    <h1>${winTitle}</h1>
     <p class="cheer">${ja ? '星に届いたよ！' : 'We reached the stars!'}</p>
-    ${hasNext ? `<p class="detail">${ja ? '第' + nextId + '夜が開放されました' : 'Night ' + nextId + ' unlocked'}</p>` : `<p class="detail">${ja ? '全ミッション制覇！おめでとう！' : 'All missions complete! Congratulations!'}</p>`}
+    <p class="detail">${winDetail}</p>
     <div class="title-btns" style="margin-top:10px">
       ${hasNext ? `<button class="btn primary" id="b-next">${t('next')}</button>` : ''}
-      <button class="btn" id="b-map">${t('backToMap')}</button>
+      ${isDailyRun ? `<button class="btn primary" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : ''}
+      ${isDailyRun ? '' : `<button class="btn" id="b-map">${t('backToMap')}</button>`}
     </div>
   ` : `
     <div class="emoji">💫</div>
@@ -604,14 +758,54 @@ function showResult(won) {
     <p class="cheer">${ja ? '今夜は星に届かなかったみたい。' : 'We didn’t reach the stars tonight.'}</p>
     <p class="detail">${detail}</p>
     <div class="title-btns" style="margin-top:10px">
-      <button class="btn primary" id="b-retry">${t('retry')}</button>
-      <button class="btn" id="b-map">${t('backToMap')}</button>
+      ${canRevenge() ? `<button class="btn primary reward-btn" id="b-revenge">${t('revengeAd')}</button>` : ''}
+      <button class="btn ${canRevenge() ? '' : 'primary'}" id="b-retry">${t('retry')}</button>
+      ${canSkipNight() ? `<button class="btn reward-btn" id="b-skip">${t('skipNight')}</button>` : ''}
+      ${isDailyRun ? `<button class="btn" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : `<button class="btn ghost" id="b-map">${t('backToMap')}</button>`}
     </div>
   `, won ? 'result-screen' : 'result-screen fail');
   if (won) { playWinJingle(); starRain(); } else { shootingStar(); }
+  // デイリー勝利: 報酬2倍ボタン（広告でヒント券をもう1枚）
+  if (won && isDailyRun && !store.hintsFull()) {
+    const btns = s.querySelector('.title-btns');
+    const b2 = document.createElement('button');
+    b2.className = 'btn reward-btn'; b2.id = 'b-double'; b2.textContent = t('reward2x');
+    btns.insertBefore(b2, btns.firstChild);
+    b2.onclick = () => {
+      tap(); b2.disabled = true; b2.textContent = '…';
+      showRewardAd(() => { store.addHints(1); lastAdAt = Date.now(); b2.remove(); toast(`🎁 ${t('gotTicket')}`); },
+        () => { b2.remove(); });
+    };
+  }
   const nb = s.querySelector('#b-next'); if (nb) nb.onclick = () => { tap(); startMission(nextId); };
   const rb = s.querySelector('#b-retry'); if (rb) rb.onclick = () => { tap(); newDeal(); };
-  s.querySelector('#b-map').onclick = () => { tap(); showMap(); };
+  const mb = s.querySelector('#b-map'); if (mb) mb.onclick = () => { tap(); showMap(); };
+  const tb = s.querySelector('#b-title'); if (tb) tb.onclick = () => { tap(); state = null; showTitle(); };
+  const vb = s.querySelector('#b-revenge');
+  if (vb) vb.onclick = () => {
+    tap(); vb.disabled = true; vb.textContent = '…';
+    showRewardAd(() => { revengeUsed = true; lastAdAt = Date.now(); redealSame(); },
+      () => { vb.disabled = false; vb.textContent = t('revengeAd'); toast(currentLang() === 'ja' ? '広告を読み込めませんでした' : 'Ad not available'); });
+  };
+  const sb = s.querySelector('#b-skip');
+  if (sb) sb.onclick = () => {
+    tap(); sb.disabled = true; sb.textContent = '…';
+    showRewardAd(() => {
+      lastAdAt = Date.now();
+      store.recordClear(curMission.id);
+      const nid = curMission.id + 1;
+      if (nid <= 50) startMission(nid); else showMap();
+    }, () => { sb.disabled = false; sb.textContent = t('skipNight'); });
+  };
+}
+
+// 「同じ配札でリベンジ」提示条件: 第6夜以降・1配札1回・キャンペーンのみ
+function canRevenge() {
+  return !isDailyRun && typeof curMission.id === 'number' && curMission.id >= 6 && !revengeUsed;
+}
+// 救済スキップ提示条件: 同じ夜で3回連続失敗したときだけ（誘導ではなく救済）
+function canSkipNight() {
+  return !isDailyRun && typeof curMission.id === 'number' && failsThisMission >= 3 && curMission.id < 50;
 }
 
 function failDetail(r) {
@@ -664,7 +858,7 @@ function showSettings() {
         <button id="s-howto">${t('howto')}<span class="chev">›</span></button>
         <button id="s-reset" class="danger">${ja ? '進行をリセット' : 'Reset progress'}<span class="chev">›</span></button>
       </div>
-      <div style="text-align:center;color:var(--c-ink-faint);font-size:11px;margin-top:20px">星空探検隊 v0.1</div>
+      <div style="text-align:center;color:var(--c-ink-faint);font-size:11px;margin-top:20px">ほしぞら探検隊 v0.2</div>
     </div>
   `, 'settings-screen');
   s.querySelector('#b-back').onclick = () => { back(); state ? showPlayOrTitle() : showTitle(); };

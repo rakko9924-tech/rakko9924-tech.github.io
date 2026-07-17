@@ -78,6 +78,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .logo .en { display: block; font-size: 12px; letter-spacing: .34em; color: var(--c-ink-sub); font-weight: 700; margin-top: 6px; text-shadow: none; }
 .btn-row { display: flex; gap: 10px; }
 .btn-row .btn { flex: 1; }
+.daily-btn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border-color: var(--suit-star); color: var(--suit-star-ink); background: linear-gradient(150deg, #FFF9E8, var(--suit-star-bg)); }
+.daily-btn .d-ic { font-size: 18px; }
+.daily-btn .d-streak { position: absolute; right: 14px; font-size: 13px; font-weight: 800; color: #E2641E; }
+.btn.reward-btn { border-color: #E09A00; background: linear-gradient(150deg, #FFD86B, #F0A800);
+  color: #5A4200; font-weight: 800; box-shadow: 0 3px 10px rgba(240,168,0,.35); }
+.btn.reward-btn:disabled { opacity: .6; }
 .airship-hero { margin: 10px 0 24px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .airship-wrap { width: 130px; animation: float 3.4s ease-in-out infinite; }
 .airship-svg { width: 100%; }
@@ -289,6 +296,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .lamp-fab:active { transform: scale(.92); }
 .lamp-fab.used { background: var(--c-disabled); } .lamp-fab.used .lamp-svg { filter: grayscale(1) opacity(.7); }
 .lamp-fab.disabled { opacity: .45; }
+.hint-fab { position: absolute; left: 12px; bottom: 92px; width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(150deg, #FFD86B, #F0A800); color: #7A5A00; font-size: 22px;
+  display: grid; place-items: center; box-shadow: var(--sh-panel); z-index: 8; transition: transform var(--t-fast); }
+.hint-fab:active { transform: scale(.92); }
+.hint-fab.disabled { opacity: .45; filter: saturate(.5); }
+.hint-count { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; border-radius: 10px;
+  background: var(--c-night); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; padding: 0 5px;
+  box-shadow: 0 1px 4px rgba(30,41,71,.4); }
+.hand .card.hinted { animation: hintGlow 1s ease-in-out infinite; transform: translateY(-10px); }
+@keyframes hintGlow {
+  0%,100% { box-shadow: 0 0 0 3px var(--c-glow), 0 6px 16px rgba(240,168,0,.45); }
+  50% { box-shadow: 0 0 0 6px rgba(255,233,168,.55), 0 6px 22px rgba(240,168,0,.65); }
+}
 
 /* ---- モーダル/シート ---- */
 .overlay { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center;
