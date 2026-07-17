@@ -58,11 +58,23 @@ export async function showInterstitial() {
 }
 
 // ---- リワード（ヒント用） ----
+let rewardCb = null;       // 現在の視聴に対するコールバック（1本だけ）
+let rewardListenerSet = false;
+
 async function prepareReward() {
   if (!adsAvailable()) return;
   try { await AdMob.prepareRewardVideoAd({ adId: window.HZ_AD_REWARD }); rewardReady = true; } catch (e) {}
 }
-// 成功時 onReward() を呼ぶ。Webではモック（1秒待ちの疑似視聴）で必ず成功。
+function ensureRewardListener() {
+  // リスナーは常設1本。コールバックだけ差し替える（蓄積・再発火バグの防止）
+  if (rewardListenerSet || !AdMob || !AdMob.addListener) return;
+  rewardListenerSet = true;
+  AdMob.addListener('onRewardedVideoAdReward', () => {
+    const cb = rewardCb; rewardCb = null;
+    cb && cb();
+  });
+}
+// 成功時 onReward() を呼ぶ。Webではモック（疑似視聴）で必ず成功。
 export function showRewardAd(onReward, onFail) {
   if (!isNative) {
     // Webモック: 実広告なしで即付与（プロトタイプ検証用）
@@ -72,13 +84,11 @@ export function showRewardAd(onReward, onFail) {
   if (!adsAvailable() || !rewardReady) { onFail && onFail(); return; }
   (async () => {
     try {
-      const listener = AdMob.addListener && AdMob.addListener('onRewardedVideoAdReward', () => {
-        listener && listener.remove && listener.remove();
-        onReward && onReward();
-      });
+      ensureRewardListener();
+      rewardCb = onReward;
       await AdMob.showRewardVideoAd();
       rewardReady = false;
       setTimeout(prepareReward, 1000);
-    } catch (e) { onFail && onFail(); }
+    } catch (e) { rewardCb = null; onFail && onFail(); }
   })();
 }

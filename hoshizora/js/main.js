@@ -11,6 +11,10 @@ import { initSfx, resumeAudio, play, playWinJingle, playTaskDone, playFail, setS
 import { initLang, currentLang, switchLang, t, tt } from './i18n.js';
 import * as store from './storage.js';
 import { initAds, showInterstitial, showRewardAd } from './ads.js';
+import {
+  connectRoom, disconnectRoom, sendStart, sendAct, sendEnd,
+  makeRoomCode, seatsOnline,
+} from './online.js';
 
 const app = document.getElementById('app');
 const fxLayer = document.getElementById('fx-layer');
@@ -28,6 +32,22 @@ let clearsThisSession = 0; // インタースティシャル頻度制御
 let lastAdAt = 0;          // 直近の全画面広告時刻（120秒クールダウン）
 let revengeUsed = false;   // 「同じ配札でリベンジ」は1配札1回まで
 let failsThisMission = 0;  // 同じ夜の連続失敗数（3回で救済スキップ提示）
+// ---- オンライン協力（決定論ロックステップ） ----
+let mySeat = 0;                    // 自分の席（オフライン=0）
+let online = false;                // オンライン対戦中か
+let humanSeats = new Set([0]);     // 人間が操作する席（離席でAIに切替）
+let netQueue = [];                 // サーバから届いた手のキュー（適用はstep経由で決定論順）
+let awaitingEcho = false;          // 自分の手のエコー待ち
+let animating = false;             // 演出中（pumpKickの再入防止）
+let aiTimer = null;                // AI手番の遅延タイマー
+let roomCode = null;               // 参加中のルームコード
+let lobbySel = 1;                  // ロビーのミッション選択
+let aiSigTrick = -1;               // AIシグナルを実行済みのトリック番号（決定論順の固定）
+let runId = 0;                     // ゲーム世代トークン（旧ゲームの残タイマー発火を無効化）
+let dailyFirstWin = false;         // 今日はじめてのデイリー勝利か（報酬の重複防止）
+
+// 座席→盤面スロット位置（自席が常に下になるよう回転）
+function posOf(seatIdx) { return (seatIdx - mySeat + 4) % 4; }
 
 // ---- 起動 -------------------------------------------------------------------
 
@@ -79,6 +99,7 @@ function showTitle() {
           <span class="d-ic">${dailyCleared() ? '✅' : '☀️'}</span>${t('daily')}
           ${dailyStreakLabel()}
         </button>
+        <button class="btn" id="b-online">🤝 ${t('online')}</button>
         <button class="btn" id="b-map">${t('missionSelect')}</button>
         <div class="btn-row">
           <button class="btn ghost" id="b-howto">${t('howto')}</button>
@@ -90,6 +111,7 @@ function showTitle() {
   `, 'title-screen');
   s.querySelector('#b-start').onclick = () => { tap(); startMission((cont ? maxId + 1 : 1)); };
   s.querySelector('#b-daily').onclick = () => { tap(); startDaily(); };
+  s.querySelector('#b-online').onclick = () => { tap(); showOnlineMenu(); };
   s.querySelector('#b-map').onclick = () => { tap(); showMap(); };
   s.querySelector('#b-howto').onclick = () => { tap(); showHowto(false); };
   s.querySelector('#b-settings').onclick = () => { tap(); showSettings(); };
@@ -273,6 +295,10 @@ function newDeal() {
     attemptSeed = (attemptSeed * 1103515245 + 12345) >>> 0; // リトライは配り直し
   } // デイリーはシード固定＝同じ配札に再挑戦
   revengeUsed = false;
+  runId++;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+  animating = false; lifted = null; hintCard = null;
+  aiSigTrick = -1;
   state = newGame(curMission, attemptSeed);
   optimizeAssignment(state); // 作戦会議（担当最適化）
   showIntroAnim();
@@ -280,6 +306,10 @@ function newDeal() {
 
 // 「同じ配札でリベンジ」: シードを進めず同じ夜を再開（前回の失敗で得た情報が活きる）
 function redealSame() {
+  runId++;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+  animating = false; lifted = null; hintCard = null;
+  aiSigTrick = -1;
   state = newGame(curMission, attemptSeed);
   optimizeAssignment(state);
   showIntroAnim();
@@ -364,14 +394,16 @@ function renderCrew() {
   if (!row) return;
   const cp = currentPlayer(state);
   let html = '';
-  for (let p = 1; p <= 3; p++) { // 味方3人（席1,2,3）
+  for (let i = 1; i <= 3; i++) { // 自分以外の3席（自席の次から時計回り）
+    const p = (mySeat + i) % 4;
     const ch = SEAT_CHAR[p];
     const tasks = state.tasks.filter(tk => tk.owner === p);
     const chips = tasks.map(tk => chipHTML(tk)).join('');
     const sig = state.signals[p];
     const lamp = sig ? `<span class="lamp-mini">${lampSVG('on')}</span>${miniChip(sig.card)}<span class="tag-tok ${sig.tag}">${tagIcon(sig.tag)}</span>` : '';
-    html += `<div class="crew c-${ch} ${cp === p ? 'active' : ''} ${busy && cp === p ? 'thinking' : ''}">
-      <div class="ava">${charImg(ch)}${state.leader === p ? '<span class="crown">👑</span>' : ''}</div>
+    const humanBadge = online && humanSeats.has(p) ? '<span class="pbadge">P</span>' : '';
+    html += `<div class="crew c-${ch} ${cp === p ? 'active' : ''} ${cp === p && state.status === 'playing' ? 'thinking' : ''}">
+      <div class="ava">${charImg(ch)}${state.leader === p ? '<span class="crown">👑</span>' : ''}${humanBadge}</div>
       <div class="nm">${tt(CHARS[ch].name)}</div>
       <div class="tasks">${chips}</div>
       <div class="lamp-slot">${lamp}</div>
@@ -386,7 +418,7 @@ function renderBoard() {
   const winner = state.currentTrick.length ? liveWinner(state.currentTrick) : -1;
   const taskCards = new Set(state.tasks.filter(tk => !tk.done).map(tk => tk.card));
   [0, 1, 2, 3].forEach(p => {
-    const slot = slots.querySelector('.slot.p' + p);
+    const slot = slots.querySelector('.slot.p' + posOf(p));
     const played = state.currentTrick.find(x => x.player === p);
     if (played) {
       const isTask = taskCards.has(played.card);
@@ -412,9 +444,9 @@ function renderBoard() {
 function renderHand() {
   const hand = document.getElementById('hand');
   if (!hand) return;
-  const legal = currentPlayer(state) === 0 ? legalCards(state, 0) : [];
-  const myTurn = currentPlayer(state) === 0 && state.status === 'playing' && !busy;
-  hand.innerHTML = state.hands[0].map(c => {
+  const legal = currentPlayer(state) === mySeat ? legalCards(state, mySeat) : [];
+  const myTurn = currentPlayer(state) === mySeat && state.status === 'playing' && !busy;
+  hand.innerHTML = state.hands[mySeat].map(c => {
     const playable = myTurn && legal.includes(c);
     const dim = myTurn && !legal.includes(c);
     const hinted = myTurn && hintCard === c;
@@ -426,7 +458,7 @@ function renderHand() {
 function renderMyTasks() {
   const el = document.getElementById('my-tasks');
   if (!el) return;
-  const tasks = state.tasks.filter(tk => tk.owner === 0);
+  const tasks = state.tasks.filter(tk => tk.owner === mySeat);
   if (!tasks.length) { el.innerHTML = ''; return; }
   el.innerHTML = `<span class="lbl">${currentLang() === 'ja' ? 'あなたのおねがい' : 'Your promises'}</span>` +
     tasks.map(tk => chipHTML(tk)).join('');
@@ -435,15 +467,15 @@ function renderMyTasks() {
 function renderLamp() {
   const fab = document.getElementById('lamp-fab');
   if (!fab) return;
-  const used = state.signals[0] != null;
-  const avail = canSignal(state, 0) && signalableCards(state, 0).length > 0 && !busy;
+  const used = state.signals[mySeat] != null;
+  const avail = canSignal(state, mySeat) && signalableCards(state, mySeat).length > 0 && !busy;
   fab.className = 'lamp-fab' + (used ? ' used' : (avail ? '' : ' disabled'));
   const hf = document.getElementById('hint-fab');
   if (hf) {
     // ヒントは第6夜（またはデイリー）で解放。序盤は自力で考える楽しさを守る
     const unlocked = isDailyRun || (typeof curMission.id === 'number' && curMission.id >= 6);
     hf.style.display = unlocked ? '' : 'none';
-    const myTurn = currentPlayer(state) === 0 && state.status === 'playing' && !busy;
+    const myTurn = currentPlayer(state) === mySeat && state.status === 'playing' && !busy;
     hf.className = 'hint-fab' + (myTurn ? '' : ' disabled');
     const hc = document.getElementById('hint-count');
     if (hc) hc.textContent = store.getHints();
@@ -454,7 +486,7 @@ function renderLamp() {
 
 function onHintTap() {
   if (busy || !state || state.status !== 'playing') return;
-  if (currentPlayer(state) !== 0) { toast(t('hintNotTurn')); play('back'); return; }
+  if (currentPlayer(state) !== mySeat) { toast(t('hintNotTurn')); play('back'); return; }
   if (store.getHints() <= 0) { openHintOffer(); return; }
   store.consumeHint();
   computeAndShowHint();
@@ -463,8 +495,8 @@ function onHintTap() {
 function computeAndShowHint() {
   play('sparkle', { gain: 0.5 });
   let best;
-  try { best = chooseCard(makeView(state, 0)); }
-  catch (e) { best = legalCards(state, 0)[0]; }
+  try { best = chooseCard(makeView(state, mySeat)); }
+  catch (e) { best = legalCards(state, mySeat)[0]; }
   hintCard = best;
   renderHand(); renderLamp();
   const el = document.querySelector(`.hand .card[data-card="${best}"]`);
@@ -490,7 +522,8 @@ function openHintOffer() {
     tap();
     ov.querySelector('#h-watch').textContent = '…';
     showRewardAd(() => {
-      store.addHints(3);
+      store.addHints(1);
+      lastAdAt = Date.now();
       ov.remove();
       toast(`🎁 ${t('hintGot')}`);
       renderLamp();
@@ -505,25 +538,88 @@ function startLoop() { step(); }
 function step() {
   if (!state || state.status !== 'playing') { if (state) endGame(); return; }
   renderAll();
-  const cp = currentPlayer(state);
-  // トリック開始時: AIのシグナル → 人間のシグナル窓
+  // トリック開始時: AI席のシグナル（全端末で決定論に同順実行）
   if (state.currentTrick.length === 0) {
     doAISignals();
     renderAll();
   }
-  if (cp === 0) {
-    // 人間の番。手札タップ待ち。トリック先頭ならシグナル窓の猶予も兼ねる。
-    busy = false;
+  // ネットワークの手を消化（適用したら continuation は commitPlay 側が持つ）
+  if (pumpNet()) return;
+  if (!state || state.status !== 'playing') { if (state) endGame(); return; }
+  const cp = currentPlayer(state);
+  if (cp === mySeat) {
+    // 自分の番。手札タップ待ち（エコー待ち中はロック維持）
+    busy = awaitingEcho;
     renderHand(); renderLamp();
+  } else if (online && humanSeats.has(cp)) {
+    // 他の人間の手番: サーバからの act を待つ
+    busy = true;
+    renderCrew(); renderHand(); renderLamp();
   } else {
     aiTurn(cp);
   }
 }
 
+// キュー先頭から適用できるだけ適用する。play を1枚適用したら true（演出が継続を持つ）
+function pumpNet() {
+  while (netQueue.length && state && state.status === 'playing') {
+    const ev = netQueue[0];
+    if (ev.t === 'seatDrop') {
+      netQueue.shift();
+      humanSeats.delete(ev.seat);
+      toast(`${tt(CHARS[SEAT_CHAR[ev.seat]].name)}${currentLang() === 'ja' ? 'はAIクルーが引き継ぎました' : ' is now AI-controlled'}`);
+      renderCrew();
+      continue;
+    }
+    const a = ev.a;
+    if (a.kind === 'signal') {
+      netQueue.shift();
+      try {
+        playSignal(state, a.seat, a.card);
+        play('lamp');
+        if (a.seat !== mySeat) toast(`${tt(CHARS[SEAT_CHAR[a.seat]].name)}のランプ: ${signalPhrase(a.seat, a.card)}`, SEAT_CHAR[a.seat]);
+      } catch (e) { /* レース負けのシグナルは全端末で同一に無視 */ }
+      // 注意: シグナルのエコーで awaitingEcho（プレイ待ち）は解除しない
+      renderAll();
+      continue;
+    }
+    if (a.kind === 'play') {
+      const cp = currentPlayer(state);
+      if (cp === a.seat) {
+        netQueue.shift();
+        if (a.seat === mySeat) awaitingEcho = false;
+        try { commitPlay(a.seat, a.card); return true; }
+        catch (e) { /* 不正手は無視（全端末同一） */ renderAll(); continue; }
+      }
+      if (humanSeats.has(cp)) {
+        // 手番は別の人間 → 先頭の手は永遠に適用不能（本人の手はこの後ろに並ぶ）。
+        // 全端末が同一状態・同一順で同じ判断になるため、捨てて進める（デッドロック防止）
+        netQueue.shift();
+        if (a.seat === mySeat) { awaitingEcho = false; busy = false; renderAll(); }
+        continue;
+      }
+      // AI手番が先。AIが打ってから消化する
+      return false;
+    }
+    netQueue.shift();
+  }
+  return false;
+}
+
+// サーバイベント受信時のキック（演出中/AI思考中なら次のstepで消化される）
+function pumpKick() {
+  if (!state || state.status !== 'playing') return;
+  if (animating || aiTimer) return;
+  step();
+}
+
 function doAISignals() {
+  // 各トリックの開始時に1回だけ実行（全端末で同一の論理順＝決定論同期の要）
+  if (state.trickNo === aiSigTrick) return;
+  aiSigTrick = state.trickNo;
   for (let i = 0; i < 4; i++) {
     const q = (state.leader + i) % 4;
-    if (q === 0) continue; // 人間は自分で
+    if (humanSeats.has(q)) continue; // 人間の席は本人が合図する
     if (canSignal(state, q)) {
       const card = chooseSignal(makeView(state, q));
       if (card) {
@@ -536,11 +632,16 @@ function doAISignals() {
 }
 
 function aiTurn(p) {
+  if (aiTimer) return; // 二重スケジュール防止
   busy = true;
   renderCrew(); renderHand(); renderLamp();
   const delay = 620 + Math.random() * 320;
-  setTimeout(() => {
+  const rid = runId;
+  aiTimer = setTimeout(() => {
+    aiTimer = null;
+    if (rid !== runId) return;
     if (!state || state.status !== 'playing') return;
+    if (currentPlayer(state) !== p) { step(); return; }
     let card;
     try { card = chooseCard(makeView(state, p)); }
     catch (e) { card = legalCards(state, p)[0]; }
@@ -549,8 +650,8 @@ function aiTurn(p) {
 }
 
 function onHandTap(card) {
-  if (busy || currentPlayer(state) !== 0 || state.status !== 'playing') return;
-  const legal = legalCards(state, 0);
+  if (busy || currentPlayer(state) !== mySeat || state.status !== 'playing') return;
+  const legal = legalCards(state, mySeat);
   if (!legal.includes(card)) {
     // 出せない理由
     const el = document.querySelector(`.hand .card[data-card="${card}"]`);
@@ -561,12 +662,20 @@ function onHandTap(card) {
   }
   if (lifted !== card) { lifted = card; play('tap'); renderHand(); return; }
   lifted = null;
-  commitPlay(0, card);
+  if (online) {
+    // ロックステップ: サーバのエコー順で適用する（楽観適用しない）
+    awaitingEcho = true; busy = true;
+    sendAct('play', mySeat, card);
+    renderHand(); renderLamp();
+    return;
+  }
+  commitPlay(mySeat, card);
 }
 
 function commitPlay(p, card) {
   cancelPendingLeader();
   busy = true;
+  animating = true;
   hintCard = null;
   const before = state.history.length;
   playCard(state, p, card);
@@ -574,19 +683,20 @@ function commitPlay(p, card) {
   const resolved = state.history.length > before;
   renderCrew(); renderHand(); renderMyTasks(); renderBoard(); renderLamp();
   animateCardEnter(p);
+  const rid = runId;
   if (resolved) {
     const rec = state.history[state.history.length - 1];
-    setTimeout(() => animateTrickResolve(rec), 340);
+    setTimeout(() => { if (rid !== runId) return; animateTrickResolve(rec); }, 340);
   } else {
-    setTimeout(() => { busy = false; step(); }, 300);
+    setTimeout(() => { if (rid !== runId) return; animating = false; busy = false; step(); }, 300);
   }
 }
 
 // カードが自席の方向からスロットへ舞い込む
 function animateCardEnter(p) {
-  const el = document.querySelector('.trick-slots .slot.p' + p + ' .card');
+  const el = document.querySelector('.trick-slots .slot.p' + posOf(p) + ' .card');
   if (!el) return;
-  const from = { 0: [0, 70], 1: [-72, 0], 2: [0, -54], 3: [72, 0] }[p];
+  const from = { 0: [0, 70], 1: [-72, 0], 2: [0, -54], 3: [72, 0] }[posOf(p)];
   el.animate([
     { transform: `translate(${from[0]}px, ${from[1]}px) scale(.88) rotate(${from[0] ? (from[0] < 0 ? -6 : 6) : 0}deg)`, opacity: 0 },
     { transform: 'translate(0,0) scale(1)', opacity: 1 },
@@ -595,11 +705,12 @@ function animateCardEnter(p) {
 
 function animateTrickResolve(rec) {
   busy = true;
+  const rid = runId;
   const doneNow = rec ? state.tasks.filter(tk => tk.done && tk.doneAtTrick === rec.trickNo) : [];
   if (state.status === 'lost') {
     // 失敗トリック: 少し見せてから、やさしくリザルトへ
     highlightWinner(rec.winner);
-    setTimeout(() => { playFail(); endGame(); }, 900);
+    setTimeout(() => { if (rid !== runId) return; playFail(); animating = false; endGame(); }, 900);
     return;
   }
   highlightWinner(rec.winner);
@@ -607,9 +718,11 @@ function animateTrickResolve(rec) {
   else play('bell', { gain: 0.28, rate: 1.35 });
   // 勝者を見せる → 4枚が勝者スロットへ吸い込まれる → 次へ
   setTimeout(() => {
+    if (rid !== runId) return;
     animateTrickCollect(rec.winner, () => {
-      if (!state) return;
+      if (rid !== runId || !state) return;
       renderAll();
+      animating = false;
       if (state.status !== 'playing') { endGame(); return; }
       busy = false;
       step();
@@ -618,8 +731,9 @@ function animateTrickResolve(rec) {
 }
 
 function highlightWinner(seat) {
-  if (seat >= 1) {
-    const crew = document.querySelectorAll('.crew-row .crew')[seat - 1];
+  const pos = posOf(seat);
+  if (pos >= 1) {
+    const crew = document.querySelectorAll('.crew-row .crew')[pos - 1];
     if (crew) crew.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 440, easing: 'ease-out' });
   }
 }
@@ -627,11 +741,13 @@ function highlightWinner(seat) {
 function animateTrickCollect(winner, cb) {
   const slots = document.getElementById('trick-slots');
   const cards = slots ? [...slots.querySelectorAll('.slot .card')] : [];
-  const target = slots ? slots.querySelector('.slot.p' + winner) : null;
+  const target = slots ? slots.querySelector('.slot.p' + posOf(winner)) : null;
   if (!cards.length || !target) { cb(); return; }
   const tr = target.getBoundingClientRect();
   const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
-  let done = 0; const total = cards.length;
+  let done = 0, called = false;
+  const total = cards.length;
+  const finish = () => { if (called) return; called = true; cb(); };
   cards.forEach((c, i) => {
     const r = c.getBoundingClientRect();
     const dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2);
@@ -639,25 +755,25 @@ function animateTrickCollect(winner, cb) {
       { transform: 'translate(0,0) scale(1)', opacity: 1 },
       { transform: `translate(${dx}px, ${dy}px) scale(.3) rotate(${(i - 1.5) * 8}deg)`, opacity: 0 },
     ], { duration: 440, delay: i * 40, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' });
-    anim.onfinish = () => { if (++done >= total) cb(); };
+    anim.onfinish = () => { if (++done >= total) finish(); };
   });
   // 保険（onfinishが来ない場合）
-  setTimeout(() => { if (done < total) cb(); }, 700);
+  setTimeout(finish, 700);
 }
 
 // ---- シグナル操作（人間） ---------------------------------------------------
 
 function onLampTap() {
-  if (busy || state.signals[0]) { if (state.signals[0]) toast(t('signalUsed')); return; }
-  if (!canSignal(state, 0)) { toast(currentLang() === 'ja' ? 'トリックの合間に使えます' : 'Use it between tricks'); return; }
-  const cards = signalableCards(state, 0);
+  if (busy || state.signals[mySeat]) { if (state.signals[mySeat]) toast(t('signalUsed')); return; }
+  if (!canSignal(state, mySeat)) { toast(currentLang() === 'ja' ? 'トリックの合間に使えます' : 'Use it between tricks'); return; }
+  const cards = signalableCards(state, mySeat);
   if (!cards.length) { toast(t('signalNone')); return; }
   openSignalMode(cards);
 }
 
 function openSignalMode(cards) {
   play('lamp', { gain: 0.5 });
-  const handHTML = state.hands[0].map(c => {
+  const handHTML = state.hands[mySeat].map(c => {
     const pick = cards.includes(c);
     return `<div class="${cardCls(c)} ${pick ? 'pickable' : 'faded'}" data-card="${c}" data-pick="${pick}">${cardInner(c)}</div>`;
   }).join('');
@@ -676,7 +792,7 @@ function openSignalMode(cards) {
 }
 
 function confirmSignal(card, sm) {
-  const tag = signalTag(state, 0, card);
+  const tag = signalTag(state, mySeat, card);
   const ja = currentLang() === 'ja';
   const suit = parseCard(card).suit;
   const phrase = `${SUIT_INFO[suit].emoji}${tt(SUIT_INFO[suit].name)}${ja ? 'で' : ' '}${tt(tagLabel(tag))}`;
@@ -695,7 +811,11 @@ function confirmSignal(card, sm) {
   const cf = document.getElementById('sig-confirm');
   cf.querySelector('#sc-back').onclick = () => { tap(); cf.remove(); };
   cf.querySelector('#sc-ok').onclick = () => {
-    playSignal(state, 0, card);
+    if (online) {
+      sendAct('signal', mySeat, card); // エコー順で適用（ロックステップ）
+    } else {
+      playSignal(state, mySeat, card);
+    }
     play('lamp'); sparkleAt();
     cf.remove(); if (sm) sm.remove();
     renderAll();
@@ -709,18 +829,19 @@ function endGame() {
   busy = false;
   if (state.status === 'won') {
     if (isDailyRun) {
+      dailyFirstWin = store.getDaily()[todayKey()] !== 'won';
       store.setDaily(todayKey(), 'won');
-      store.addHints(1); // デイリー報酬: ヒント券1枚（リザルトで報酬2倍可）
+      if (dailyFirstWin) store.addHints(1); // デイリー報酬は1日1回（勝ち直しファーム防止）
     } else {
       store.recordClear(curMission.id);
       failsThisMission = 0;
     }
     showResult(true);
     // インタースティシャル: 勝利→リザルト描画後のみ。第6夜以降・2夜クリアごと・
-    // 120秒クールダウン・失敗直後とデイリーは出さない（リワード優先の設計）
+    // 120秒クールダウン・失敗直後/デイリー/オンラインは出さない（リワード優先の設計）
     clearsThisSession++;
     const now = Date.now();
-    if (!store.isAdFree() && !isDailyRun && typeof curMission.id === 'number' &&
+    if (!store.isAdFree() && !isDailyRun && !online && typeof curMission.id === 'number' &&
       curMission.id > 5 && clearsThisSession % 2 === 0 && now - lastAdAt > 120000) {
       setTimeout(async () => { if (await showInterstitial()) lastAdAt = Date.now(); }, 800);
     }
@@ -728,6 +849,7 @@ function endGame() {
     if (!isDailyRun) failsThisMission++;
     showResult(false);
   }
+  if (online) sendEnd(); // ルームをロビーに戻す（全員が終局を検知している）
 }
 
 function showResult(won) {
@@ -748,9 +870,10 @@ function showResult(won) {
     <p class="cheer">${ja ? '星に届いたよ！' : 'We reached the stars!'}</p>
     <p class="detail">${winDetail}</p>
     <div class="title-btns" style="margin-top:10px">
-      ${hasNext ? `<button class="btn primary" id="b-next">${t('next')}</button>` : ''}
-      ${isDailyRun ? `<button class="btn primary" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : ''}
-      ${isDailyRun ? '' : `<button class="btn" id="b-map">${t('backToMap')}</button>`}
+      ${online ? `<button class="btn primary" id="b-lobby">${t('toLobby')}</button>` : ''}
+      ${!online && hasNext ? `<button class="btn primary" id="b-next">${t('next')}</button>` : ''}
+      ${!online && isDailyRun ? `<button class="btn primary" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : ''}
+      ${!online && !isDailyRun ? `<button class="btn" id="b-map">${t('backToMap')}</button>` : ''}
     </div>
   ` : `
     <div class="emoji">💫</div>
@@ -758,15 +881,16 @@ function showResult(won) {
     <p class="cheer">${ja ? '今夜は星に届かなかったみたい。' : 'We didn’t reach the stars tonight.'}</p>
     <p class="detail">${detail}</p>
     <div class="title-btns" style="margin-top:10px">
+      ${online ? `<button class="btn primary" id="b-lobby">${t('toLobby')}</button>` : `
       ${canRevenge() ? `<button class="btn primary reward-btn" id="b-revenge">${t('revengeAd')}</button>` : ''}
       <button class="btn ${canRevenge() ? '' : 'primary'}" id="b-retry">${t('retry')}</button>
       ${canSkipNight() ? `<button class="btn reward-btn" id="b-skip">${t('skipNight')}</button>` : ''}
-      ${isDailyRun ? `<button class="btn" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : `<button class="btn ghost" id="b-map">${t('backToMap')}</button>`}
+      ${isDailyRun ? `<button class="btn" id="b-title">${ja ? 'タイトルへ' : 'Back to Title'}</button>` : `<button class="btn ghost" id="b-map">${t('backToMap')}</button>`}`}
     </div>
   `, won ? 'result-screen' : 'result-screen fail');
   if (won) { playWinJingle(); starRain(); } else { shootingStar(); }
   // デイリー勝利: 報酬2倍ボタン（広告でヒント券をもう1枚）
-  if (won && isDailyRun && !store.hintsFull()) {
+  if (won && isDailyRun && dailyFirstWin && !store.hintsFull()) {
     const btns = s.querySelector('.title-btns');
     const b2 = document.createElement('button');
     b2.className = 'btn reward-btn'; b2.id = 'b-double'; b2.textContent = t('reward2x');
@@ -777,6 +901,15 @@ function showResult(won) {
         () => { b2.remove(); });
     };
   }
+  // シェアボタン（勝利時は常設・デイリー失敗時も惜しさ共有用に表示）
+  if (won || isDailyRun) {
+    const btns = s.querySelector('.title-btns');
+    const sb2 = document.createElement('button');
+    sb2.className = 'btn ghost'; sb2.id = 'b-share'; sb2.textContent = `🔗 ${t('share')}`;
+    btns.appendChild(sb2);
+    sb2.onclick = () => { tap(); doShare(won); };
+  }
+  const lb = s.querySelector('#b-lobby'); if (lb) lb.onclick = () => { tap(); abandonGame(); online = false; showLobby(); };
   const nb = s.querySelector('#b-next'); if (nb) nb.onclick = () => { tap(); startMission(nextId); };
   const rb = s.querySelector('#b-retry'); if (rb) rb.onclick = () => { tap(); newDeal(); };
   const mb = s.querySelector('#b-map'); if (mb) mb.onclick = () => { tap(); showMap(); };
@@ -797,6 +930,196 @@ function showResult(won) {
       if (nid <= 50) startMission(nid); else showMap();
     }, () => { sb.disabled = false; sb.textContent = t('skipNight'); });
   };
+}
+
+// ---- オンライン協力（ロビー/接続） ------------------------------------------
+
+function showOnlineMenu() {
+  const ja = currentLang() === 'ja';
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<div class="overlay show center-mode" id="ov-online"><div class="sheet center">
+    <div style="text-align:center;font-size:34px">🤝</div>
+    <h2>${t('online')}</h2>
+    <p class="intro">${ja ? '2〜4人で同じ夜に挑戦。空いた席はAIクルーが担当します。' : 'Play a night together with 2–4 players. Empty seats are AI crew.'}</p>
+    <div class="sheet-btns" style="flex-direction:column">
+      <button class="btn primary" id="o-create">${t('createRoom')}</button>
+      <div class="join-row">
+        <input id="o-code" class="code-input" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false">
+        <button class="btn" id="o-join">${t('joinRoom')}</button>
+      </div>
+      <button class="btn ghost" id="o-cancel">${t('cancel')}</button>
+    </div></div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const ov = document.getElementById('ov-online');
+  ov.querySelector('#o-cancel').onclick = () => { tap(); ov.remove(); };
+  ov.querySelector('#o-create').onclick = () => { tap(); ov.remove(); enterRoom(makeRoomCode()); };
+  ov.querySelector('#o-join').onclick = () => {
+    const code = (ov.querySelector('#o-code').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length !== 4) { toast(ja ? '4文字のコードを入れてください' : 'Enter the 4-letter code'); return; }
+    tap(); ov.remove(); enterRoom(code);
+  };
+}
+
+function enterRoom(code) {
+  roomCode = code;
+  connectRoom(code, {
+    onJoined: (seat) => { mySeat = seat; showLobby(); },
+    onRoster: () => { if (document.getElementById('lobby-seats')) showLobby(); },
+    onStart: (m) => startOnlineMission(m),
+    onAct: (a) => { netQueue.push({ t: 'act', a }); pumpKick(); },
+    onSeatDrop: (seat) => {
+      if (state && state.status === 'playing') { netQueue.push({ t: 'seatDrop', seat }); pumpKick(); }
+      else if (document.getElementById('lobby-seats')) showLobby();
+    },
+    onLobby: () => { if (!state || state.status !== 'playing') showLobby(); },
+    onFull: () => { toast(t('roomFull')); showTitle(); },
+    onClosed: () => {
+      // 自分の接続断: 残りをAIにしてオフライン続行
+      if (state && state.status === 'playing' && online) {
+        online = false; humanSeats = new Set([mySeat]); netQueue = [];
+        awaitingEcho = false; toast(t('connLost'));
+        if (!animating && !aiTimer) step();
+      } else {
+        roomCode = null; online = false;
+      }
+    },
+  });
+}
+
+function showLobby() {
+  online = false; // プレイはまだ。開始時にtrue
+  const ja = currentLang() === 'ja';
+  const seats = seatsNow();
+  const maxNight = Math.min(50, store.maxClearedId() + 1);
+  lobbySel = Math.min(Math.max(1, lobbySel), maxNight);
+  const seatCards = [0, 1, 2, 3].map(p => {
+    const ch = SEAT_CHAR[p];
+    const occupied = seats[p];
+    const label = p === mySeat ? t('youSeat') : (occupied ? 'P' + (p + 1) : t('aiSeat'));
+    return `<div class="lobby-seat ${occupied ? 'occ' : ''} ${p === mySeat ? 'me' : ''}">
+      <span class="char-mini" style="width:44px;height:44px;background:var(--chara-${ch})">${charImg(ch)}</span>
+      <div class="ls-name">${tt(CHARS[ch].name)}</div>
+      <div class="ls-tag">${label}</div>
+    </div>`;
+  }).join('');
+  const isCaptain = mySeat === 0;
+  const s = setScreen(`
+    <div class="hdr"><button class="icon-btn" id="b-back">‹</button>
+      <div class="title">🤝 ${t('online')}</div><span style="width:40px"></span></div>
+    <div class="lobby-body">
+      <div class="room-code-box">
+        <div class="rc-label">${t('roomCode')}</div>
+        <div class="rc-code" id="rc-code">${roomCode}</div>
+        <div class="rc-hint">${t('codeShare')}</div>
+      </div>
+      <div class="lobby-seats" id="lobby-seats">${seatCards}</div>
+      ${isCaptain ? `
+        <div class="night-picker">
+          <button class="icon-btn" id="np-prev">‹</button>
+          <div class="np-label">${ja ? '第' : 'Night '}<b id="np-num">${lobbySel}</b>${ja ? '夜' : ''}</div>
+          <button class="icon-btn" id="np-next">›</button>
+        </div>
+        <button class="btn primary" id="b-depart" style="width:min(280px,80vw)">${t('depart')}</button>
+      ` : `<p class="intro" style="text-align:center">${t('waitingCaptain')}</p>`}
+    </div>
+  `, 'lobby-screen');
+  s.querySelector('#b-back').onclick = () => { back(); leaveRoomToTitle(); };
+  s.querySelector('#rc-code').onclick = () => {
+    try { navigator.clipboard.writeText(roomCode); toast(`📋 ${t('shareCopied')}`); } catch (e) {}
+  };
+  if (isCaptain) {
+    s.querySelector('#np-prev').onclick = () => { tap(); lobbySel = Math.max(1, lobbySel - 1); s.querySelector('#np-num').textContent = lobbySel; };
+    s.querySelector('#np-next').onclick = () => { tap(); lobbySel = Math.min(maxNight, lobbySel + 1); s.querySelector('#np-num').textContent = lobbySel; };
+    s.querySelector('#b-depart').onclick = () => {
+      tap();
+      sendStart(lobbySel, (Date.now() % 2147483647) >>> 0);
+    };
+  }
+}
+
+function seatsNow() {
+  const a = seatsOnline();
+  if (mySeat >= 0) a[mySeat] = true;
+  return a;
+}
+
+function startOnlineMission(m) {
+  isDailyRun = false;
+  online = true;
+  humanSeats = new Set(m.humanSeats);
+  netQueue = [];
+  awaitingEcho = false;
+  curMission = missionById(m.missionId);
+  attemptSeed = m.seed >>> 0;
+  revengeUsed = true; // オンラインではリベンジ/スキップは出さない
+  failsThisMission = 0;
+  runId++;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+  animating = false; lifted = null; hintCard = null;
+  aiSigTrick = -1;
+  state = newGame(curMission, attemptSeed);
+  optimizeAssignment(state);
+  showIntroAnim();
+}
+
+// ゲームを放棄して画面を離れる（残タイマー無効化）
+function abandonGame() {
+  runId++;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+  animating = false; busy = false; awaitingEcho = false;
+  lifted = null; hintCard = null;
+  state = null;
+}
+
+function leaveRoomToTitle() {
+  disconnectRoom();
+  abandonGame();
+  roomCode = null; online = false; mySeat = 0; humanSeats = new Set([0]);
+  netQueue = [];
+  showTitle();
+}
+
+// ---- シェア（ゼロコストの成長装置。Wordle型の絵文字グリッド） ----------------
+
+const SHARE_URL = 'https://rakko9924-tech.github.io/hoshizora/';
+
+function shareText(won) {
+  const ja = currentLang() === 'ja';
+  // トリック経過グリッド: ⭐=おねがい達成トリック / 🌙=その他 / 💥=失敗
+  const marks = [];
+  for (let i = 0; i < state.trickNo; i++) {
+    marks.push(state.tasks.some(tk => tk.doneAtTrick === i) ? '⭐' : '🌙');
+  }
+  if (!won) marks.push('💥');
+  const grid = marks.join('');
+  if (isDailyRun) {
+    const key = todayKey();
+    const streak = store.dailyStreak(key);
+    return `🎈${ja ? 'ほしぞら探検隊 今日の挑戦' : 'Starlight Expedition Daily'} ${key.slice(5).replace('-', '/')}\n` +
+      `${grid} ${won ? (ja ? `${state.trickNo}トリックで達成！` : `cleared in ${state.trickNo} tricks!`) : (ja ? 'ざんねん…' : 'so close…')}\n` +
+      (streak > 1 ? `🔥${streak}${ja ? '日連続' : '-day streak'}\n` : '') + SHARE_URL;
+  }
+  const nightLabel = ja ? `第${curMission.id}夜` : `Night ${curMission.id}`;
+  const head = curMission.id === 50 && won
+    ? (ja ? '🌅 全50夜制覇！' : '🌅 All 50 nights complete!')
+    : `${won ? '🌟' : '💫'}${nightLabel}${won ? (ja ? ' クリア！' : ' clear!') : ''}`;
+  return `🎈${ja ? 'ほしぞら探検隊' : 'Starlight Expedition'} ${head}\n${grid}\n${SHARE_URL}`;
+}
+
+function doShare(won) {
+  const text = shareText(won);
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    try {
+      navigator.clipboard.writeText(text).then(() => toast(`📋 ${t('shareCopied')}`));
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+      toast(`📋 ${t('shareCopied')}`);
+    }
+  }
 }
 
 // 「同じ配札でリベンジ」提示条件: 第6夜以降・1配札1回・キャンペーンのみ
@@ -830,10 +1153,10 @@ function openPauseMenu() {
     <h2>${ja ? 'メニュー' : 'Menu'}</h2>
     <div class="menu-list">
       <button id="m-resume">${ja ? 'ゲームにもどる' : 'Resume'}</button>
-      <button id="m-restart">${ja ? '最初からやり直す' : 'Restart mission'}</button>
+      ${online ? '' : `<button id="m-restart">${ja ? '最初からやり直す' : 'Restart mission'}</button>`}
       <button id="m-howto">${t('howto')}</button>
       <button id="m-settings">${t('settings')}</button>
-      <button id="m-map">${t('backToMap')}</button>
+      ${online ? `<button id="m-leave" class="danger">${t('leaveRoom')}</button>` : `<button id="m-map">${t('backToMap')}</button>`}
     </div>
   </div></div>`;
   document.body.appendChild(wrap.firstElementChild);
@@ -841,10 +1164,11 @@ function openPauseMenu() {
   const close = () => ov.remove();
   ov.onclick = e => { if (e.target === ov) close(); };
   ov.querySelector('#m-resume').onclick = () => { tap(); close(); };
-  ov.querySelector('#m-restart').onclick = () => { tap(); close(); newDeal(); };
+  const mr = ov.querySelector('#m-restart'); if (mr) mr.onclick = () => { tap(); close(); newDeal(); };
   ov.querySelector('#m-howto').onclick = () => { tap(); close(); showHowto(true); };
   ov.querySelector('#m-settings').onclick = () => { tap(); close(); showSettings(); };
-  ov.querySelector('#m-map').onclick = () => { tap(); close(); showMap(); };
+  const mm = ov.querySelector('#m-map'); if (mm) mm.onclick = () => { tap(); close(); abandonGame(); showMap(); };
+  const ml = ov.querySelector('#m-leave'); if (ml) ml.onclick = () => { tap(); close(); leaveRoomToTitle(); };
 }
 
 function showSettings() {

@@ -8,6 +8,7 @@
 import {
   fullDeck, parseCard, isComet, CHAR_SEAT, TRICKS,
   makeRng, playCard, playSignal, currentPlayer, makeView, canSignal,
+  eligibleSeatsFor,
 } from './engine.js';
 
 const HUMAN = 0;
@@ -355,10 +356,9 @@ function cloneStateForPlan(state, owners) {
   };
 }
 
-function evalAssignment(state, owners, rolls) {
-  let wins = 0;
-  for (let r = 0; r < rolls; r++) wins += rollout(cloneStateForPlan(state, owners));
-  return wins / rolls;
+function evalAssignment(state, owners) {
+  // rollout は完全決定論（乱数なし）なので1回で十分（複数回は同一結果の繰り返し）
+  return rollout(cloneStateForPlan(state, owners));
 }
 
 export function optimizeAssignment(state, opts = {}) {
@@ -367,30 +367,36 @@ export function optimizeAssignment(state, opts = {}) {
   if ((m.tasks.assign || 'choice') !== 'choice') return state; // 相談できるのは choice のみ
   const restarts = opts.restarts ?? 3;
   const iters = opts.iters ?? 24;
-  const rolls = opts.rolls ?? 5;
 
-  const excluded = (m.modifiers || []).filter(x => x.key === 'no_tricks_member').map(x => CHAR_SEAT[x.member]);
+  const mods = m.modifiers || [];
+  const excluded = mods.filter(x => x.key === 'no_tricks_member').map(x => CHAR_SEAT[x.member]);
   const allowed = [0, 1, 2, 3].filter(s => !excluded.includes(s));
   if (allowed.length <= 1) return state;
+  // 彗星縛り等の「担当にできない席」をタスクごとに除外（詰み割当を候補空間から排除）
+  const elig = state.tasks.map(t => {
+    const el = eligibleSeatsFor(t.card, state.hands, allowed, mods);
+    return el.length ? el : allowed;
+  });
   const rng = makeRng((state.seed >>> 0) ^ 0x9e3779b9);
   const n = state.tasks.length;
 
   let bestOwners = state.tasks.map(t => t.owner);
-  let bestScore = evalAssignment(state, bestOwners, rolls);
+  let bestScore = evalAssignment(state, bestOwners);
 
   for (let rs = 0; rs < restarts; rs++) {
-    // 初期解: 1回目は現状、以降はランダム
+    // 初期解: 1回目は現状、以降はランダム（適格席からのみ）
     let owners = rs === 0 ? bestOwners.slice()
-      : state.tasks.map(() => allowed[Math.floor(rng() * allowed.length)]);
-    let score = rs === 0 ? bestScore : evalAssignment(state, owners, rolls);
+      : state.tasks.map((t, i) => elig[i][Math.floor(rng() * elig[i].length)]);
+    let score = rs === 0 ? bestScore : evalAssignment(state, owners);
     for (let it = 0; it < iters; it++) {
-      // ランダムな1タスクの担当を別の席に変えて改善するか試す（山登り）
+      // ランダムな1タスクの担当を別の適格席に変えて改善するか試す（山登り）
       const i = Math.floor(rng() * n);
       const cur = owners[i];
-      const alt = allowed.filter(s => s !== cur);
+      const alt = elig[i].filter(s => s !== cur);
+      if (!alt.length) continue;
       const cand = alt[Math.floor(rng() * alt.length)];
       const trial = owners.slice(); trial[i] = cand;
-      const sc = evalAssignment(state, trial, rolls);
+      const sc = evalAssignment(state, trial);
       if (sc >= score) { owners = trial; score = sc; }
       if (score >= 0.98) break;
     }
@@ -556,18 +562,21 @@ function scoreLead(card, view, k, plan) {
     else s -= 350;
   }
   // (C) 味方のおねがい札を自分が保持 → 担当者が勝てると分かるなら低リードで手渡し
+  // （シグナル札がプレイ済みなら根拠にならない。彗星縛りでは非彗星勝ち=違反なので不成立）
   if (t && t.owner !== me && plan.tagAllowsNow(t)) {
+    const cometOnly = view.modifiers.some(m => m.key === 'task_won_by_comet');
     const sig = view.signals[t.owner];
-    const ownerCanBeat = sig && parseCard(sig.card).suit === pc.suit &&
+    const ownerCanBeat = !cometOnly && sig && !seenAlready(view, sig.card) &&
+      parseCard(sig.card).suit === pc.suit &&
       sig.tag === 'highest' && parseCard(sig.card).rank > pc.rank && k.isBoss(sig.card);
     s += ownerCanBeat ? W.FEED * 0.9 : W.FAIL * 0.6;
   }
-  // (C') 担当者の強スート（シグナル済）を低リードして勝たせる
+  // (C') 担当者の強スート（シグナル済・未プレイ）を低リードして勝たせる
   if (!t) {
     for (const x of plan.pending) {
       if (x.owner === me || !plan.tagAllowsNow(x) || plan.locate(x.card) !== 'ME') continue;
       const sig = view.signals[x.owner];
-      if (sig && sig.tag === 'highest' && k.isBoss(sig.card) &&
+      if (sig && !seenAlready(view, sig.card) && sig.tag === 'highest' && k.isBoss(sig.card) &&
         parseCard(sig.card).suit === pc.suit && pc.rank < parseCard(sig.card).rank) {
         s += W.FEED_SETUP * 0.6;
       }

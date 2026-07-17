@@ -55,6 +55,21 @@ export const STR = {
   dailyDone: { ja: '今日はクリアずみ', en: 'Cleared today' },
   streak: { ja: '連続', en: 'streak' },
   later: { ja: 'あとで', en: 'Later' },
+  share: { ja: '結果をシェア', en: 'Share result' },
+  shareCopied: { ja: 'シェア文をコピーしました！', en: 'Copied to clipboard!' },
+  online: { ja: 'みんなで冒険', en: 'Play Together' },
+  createRoom: { ja: 'ルームを作る', en: 'Create a room' },
+  joinRoom: { ja: 'コードで参加', en: 'Join with code' },
+  roomCode: { ja: 'ルームコード', en: 'Room code' },
+  waitingCaptain: { ja: '隊長の出発を待っています…', en: 'Waiting for the captain…' },
+  depart: { ja: '出発する', en: 'Set off' },
+  leaveRoom: { ja: 'ルームを退出', en: 'Leave room' },
+  toLobby: { ja: 'ロビーへもどる', en: 'Back to lobby' },
+  roomFull: { ja: 'このルームは満員か、プレイ中です', en: 'Room is full or already playing' },
+  connLost: { ja: '接続が切れました。AIクルーと続行します', en: 'Connection lost — AI crew takes over' },
+  aiSeat: { ja: 'AIクルー', en: 'AI crew' },
+  youSeat: { ja: 'あなた', en: 'You' },
+  codeShare: { ja: 'コードを友だちに伝えて集まろう', en: 'Share the code with friends' },
 };
 
 let lang = 'ja';

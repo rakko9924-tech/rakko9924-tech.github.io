@@ -23,8 +23,8 @@ export async function initSfx() {
   }));
 }
 
-export function resumeAudio() { // iOSは初回タップで resume が必要
-  if (ctx && ctx.state === 'suspended') ctx.resume();
+export function resumeAudio() { // iOSは初回タップで resume が必要（interrupted=電話/Siri割り込み後も）
+  if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) ctx.resume();
 }
 
 export function play(name, { rate = 1, gain = 0.9, delay = 0 } = {}) {

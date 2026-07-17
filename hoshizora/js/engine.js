@@ -65,26 +65,32 @@ export function shuffled(arr, rng) {
 export function newGame(missionDef, seed) {
   const rng = makeRng(seed);
   const mods = missionDef.modifiers || [];
-
-  // 配札（must_win_with_rank の配札補正: 指定隊員に該当ランクを保証。無ければ引き直し）
-  let hands, tries = 0;
   const mustWin = mods.find(m => m.key === 'must_win_with_rank');
+  const excluded = mods.filter(m => m.key === 'no_tricks_member').map(m => CHAR_SEAT[m.member]);
+  const t = missionDef.tasks || { count: 0 };
+
+  // no_win_with_rank の対象ランクはおねがい抽選から除外（担当者しか出せない＋
+  // 担当者が勝つ必要があるのに、そのランクで勝つと即失敗＝開始時点で詰むため）
+  const bannedRanks = mods.filter(m => m.key === 'no_win_with_rank').map(m => m.rank);
+  let pool = taskDeck();
+  if (bannedRanks.length) pool = pool.filter(c => !bannedRanks.includes(parseCard(c).rank));
+
+  // 配札＋おねがい割当。成立しない配札（must_win該当ランクなし / task_won_by_comet で
+  // 適格担当者ゼロ）は引き直し
+  let hands, commander, drawn, owners, tries = 0;
   do {
     const deck = shuffled(fullDeck(), rng);
     hands = [[], [], [], []];
     deck.forEach((c, i) => hands[i % PLAYER_COUNT].push(c));
-  } while (mustWin && tries++ < 100 &&
-    !hands[CHAR_SEAT[mustWin.member]].some(c => parseCard(c).rank === mustWin.rank));
-  hands.forEach(h => h.sort(compareForHand));
+    hands.forEach(h => h.sort(compareForHand));
+    commander = hands.findIndex(h => h.includes(cardId(COMET, 4))); // 彗星4=隊長
+    drawn = shuffled(pool, rng).slice(0, t.count || 0);
+    owners = null;
+    if (mustWin && !hands[CHAR_SEAT[mustWin.member]].some(c => parseCard(c).rank === mustWin.rank)) continue;
+    owners = assignTasks(drawn, hands, commander, t.assign || 'choice', excluded, rng, mods);
+  } while (owners === null && tries++ < 100);
+  if (owners === null) owners = drawn.map((_, i) => (commander + i) % PLAYER_COUNT); // 最終保険
 
-  // 彗星4を持つ隊員が最初のリーダー（隊長）
-  const commander = hands.findIndex(h => h.includes(cardId(COMET, 4)));
-
-  // おねがいカードを36枚から引き、担当を割当
-  const t = missionDef.tasks || { count: 0 };
-  const drawn = shuffled(taskDeck(), rng).slice(0, t.count || 0);
-  const excluded = mods.filter(m => m.key === 'no_tricks_member').map(m => CHAR_SEAT[m.member]);
-  const owners = assignTasks(drawn, hands, commander, t.assign || 'choice', excluded, rng, mods);
   const tasks = drawn.map((card, i) => ({
     card,
     owner: owners[i],
@@ -114,18 +120,42 @@ export function newGame(missionDef, seed) {
 }
 
 // 担当割当。'choice'=手札適性の自動最適割当（作戦会議の代わり）/'random'=完全ランダム/'sora'等=固定
+// 成立不能（task_won_by_comet で適格席なし等）なら null を返し、呼び出し側が配り直す。
+export function eligibleSeatsFor(card, hands, allowed, mods) {
+  const cometOnly = (mods || []).some(m => m.key === 'task_won_by_comet');
+  if (!cometOnly) return allowed;
+  // 彗星縛り: おねがい札の所持者本人（自分で出して自分で勝つと勝ち札が非彗星になり必ず違反）と
+  // 彗星0枚の席（彗星で勝てない）は担当にできない
+  return allowed.filter(p => !hands[p].includes(card) && hands[p].some(c => isComet(c)));
+}
+
 function assignTasks(drawn, hands, commander, assign, excluded, rng, mods) {
   const allowed = [0, 1, 2, 3].filter(p => !excluded.includes(p));
-  if (CHAR_SEAT[assign] !== undefined) return drawn.map(() => CHAR_SEAT[assign]);
-  if (assign === 'random') return drawn.map(() => allowed[Math.floor(rng() * allowed.length)]);
+  if (CHAR_SEAT[assign] !== undefined) {
+    const p = CHAR_SEAT[assign];
+    for (const card of drawn) if (!eligibleSeatsFor(card, hands, allowed, mods).includes(p)) return null;
+    return drawn.map(() => p);
+  }
+  if (assign === 'random') {
+    const res = [];
+    for (const card of drawn) {
+      const el = eligibleSeatsFor(card, hands, allowed, mods);
+      if (!el.length) return null;
+      res.push(el[Math.floor(rng() * el.length)]);
+    }
+    return res;
+  }
   // 'choice': カード保持+同スート上位札+彗星保有で採点、担当数はならす
   const cometOnly = (mods || []).some(m => m.key === 'task_won_by_comet');
   const cometW = cometOnly ? 3.2 : 0.6; // 彗星縛りでは彗星保有が最重要
   const load = [0, 0, 0, 0];
-  return drawn.map(card => {
+  const res = [];
+  for (const card of drawn) {
     const { suit, rank } = parseCard(card);
-    let best = allowed[0], bestScore = -Infinity;
-    for (const p of allowed) {
+    const el = eligibleSeatsFor(card, hands, allowed, mods);
+    if (!el.length) return null;
+    let best = el[0], bestScore = -Infinity;
+    for (const p of el) {
       let s = 0;
       // 自分の高い札は自力で勝てるので好相性。低い札を自分で持つのは回収が難しく不利
       if (hands[p].includes(card)) s += rank >= 7 ? 7 : rank >= 5 ? 2 : -2;
@@ -136,8 +166,9 @@ function assignTasks(drawn, hands, commander, assign, excluded, rng, mods) {
       if (s > bestScore) { bestScore = s; best = p; }
     }
     load[best]++;
-    return best;
-  });
+    res.push(best);
+  }
+  return res;
 }
 
 function compareForHand(a, b) {

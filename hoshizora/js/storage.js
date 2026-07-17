@@ -79,11 +79,13 @@ export function setDaily(dateKey, status) {
   save(d);
 }
 export function dailyStreak(todayKey) {
+  // すべてローカル日付で計算（toISOStringはUTCに変換されJST等で1日ずれるので使わない）
   const d = load().daily || {};
   let streak = 0;
-  const day = new Date(todayKey + 'T00:00:00');
+  const [y, m, dd] = todayKey.split('-').map(Number);
+  const day = new Date(y, m - 1, dd);
   for (let i = 0; i < 999; i++) {
-    const k = day.toISOString().slice(0, 10);
+    const k = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
     if (d[k] === 'won') { streak++; day.setDate(day.getDate() - 1); }
     else break;
   }
