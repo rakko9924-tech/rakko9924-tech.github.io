@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>プライバシーポリシー — ShareHistory</title>
+<meta name="robots" content="index,follow">
+<style>
+  :root{ --bg:#0e0d13; --panel:#1b1a24; --txt:#eceaf4; --muted:#9b95ad; --gold:#bcaaf3; --line:rgba(255,255,255,.12); }
+  *{ box-sizing:border-box; } html,body{ margin:0; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    background:radial-gradient(120% 80% at 50% 0%, #211c33 0%, var(--bg) 60%, #060509 100%); color:var(--txt); line-height:1.75; min-height:100vh; }
+  .wrap{ max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  header{ border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:8px; }
+  h1{ font-size:1.5rem; margin:.2em 0; } h2{ font-size:1.15rem; color:var(--gold); margin:1.8em 0 .4em; }
+  .lead{ color:var(--muted); } .meta{ color:var(--muted); font-size:.9rem; }
+  a{ color:var(--gold); } ul{ padding-left:1.2em; } li{ margin:.3em 0; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:.8em 0; }
+  footer{ margin-top:48px; border-top:1px solid var(--line); padding-top:16px; color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>プライバシーポリシー</h1>
+  <p class="lead">ShareHistory（パチスロ収支共有＆子役カウント、以下「本アプリ」）</p>
+  <p class="meta">最終更新日: 2026年7月20日</p>
+</header>
+
+<p>本アプリの開発者（以下「当方」）は、利用者のプライバシーを尊重します。本ポリシーは、本アプリが情報をどのように取得・利用・共有するかを説明します。</p>
+
+<div class="card"><strong>要点:</strong> 本アプリは、個人利用のデータ（収支・カウント・メモ等）を主に<strong>端末内</strong>に保存します。「共有グループ」や「機種メモの公開」を利用した場合に限り、その内容が<strong>クラウド（Google Firebase）</strong>に保存され、グループ参加者や不特定の利用者に共有されます。荒らし防止のため機種メモの公開・ダウンロード時に<strong>Appleでのサインイン</strong>を求めます。また無料提供のため <strong>Google AdMob</strong> の広告を表示します（iOSでは App Tracking Transparency の同意ダイアログを表示します）。当方が氏名・メールアドレス・クレジットカード等を取得することはありません。</p>
+
+<h2>1. 端末内にのみ保存される情報</h2>
+<p>以下は原則として<strong>利用者の端末内（ローカルストレージ）にのみ</strong>保存され、当方サーバーへ送信されません（本アプリを削除すると消去されます）。</p>
+<ul>
+  <li>収支記録（投資・回収・経費・日付・店舗・機種・台番号など）</li>
+  <li>子役カウント・回転数・メモ、機種メモ（テンプレート）</li>
+  <li>設定、タグ、お気に入り、ロック画面カウンターの配置</li>
+</ul>
+
+<h2>2. 共有機能を使った場合にクラウドへ保存・共有される情報</h2>
+<p>利用者が任意で「共有グループ」に参加、または「機種メモの公開」を行った場合に限り、対象の内容が Google Firebase（Realtime Database）に保存され、次の範囲で共有されます。</p>
+<ul>
+  <li><strong>共有グループ:</strong> グループに保存先を指定した収支・カウント・メモ・ニックネーム・役割が、そのグループの参加者に共有されます（グループの設定・役割により閲覧/編集範囲が決まります）。個人用に保存した記録は共有されません。</li>
+  <li><strong>機種メモの公開:</strong> 公開した機種メモ（数える項目・メモ・配置）、登録した<strong>ニックネーム</strong>、ダウンロード数・評価が、不特定の利用者に公開されます。</li>
+  <li><strong>認証情報:</strong> 匿名認証の識別子（ランダムなID）を利用します。機種メモの公開・ダウンロード・評価には、荒らし防止のため <strong>Appleでのサインイン</strong>を求めます。この際、当方はAppleから提供される識別トークンで本人性を確認しますが、氏名・メールアドレスは取得・保存しません（Appleの「メールを非公開」も利用できます）。</li>
+</ul>
+<p>Firebase におけるデータの取り扱いは <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase のプライバシー</a>／<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google プライバシーポリシー</a> をご確認ください。</p>
+
+<h2>3. ユーザー投稿コンテンツ（機種メモの公開）について</h2>
+<p>「みんなの機種メモ」は利用者が投稿・公開できる機能です。当方は不適切な投稿を許容しません。公開・ダウンロード・評価にはAppleサインインが必要で、各投稿には<strong>通報</strong>手段を用意しています。通報された投稿は確認のうえ、規約違反があれば削除し、悪質な利用者の投稿は<strong>非表示・利用停止</strong>とすることがあります。不適切な内容を見つけた場合は下記の連絡先または各投稿の通報機能からお知らせください。</p>
+
+<h2>4. 広告について（Google AdMob）</h2>
+<p>本アプリは無料提供のため、Google の <strong>AdMob</strong> によるバナー広告を表示します。広告の配信・測定のため、AdMob およびそのパートナーは次の情報を取得・利用する場合があります。</p>
+<ul>
+  <li><strong>広告識別子（IDFA）を含む端末識別子</strong>、デバイス情報（機種・OS・言語など）</li>
+  <li>広告との接触・操作データ、おおよその位置情報（国・地域レベル）、診断・パフォーマンス情報</li>
+</ul>
+<p>iOS では、トラッキングに用いる識別子（IDFA）の使用について <strong>App Tracking Transparency（ATT）</strong> の許可ダイアログを表示します。許可しない場合でも広告は表示されますが、パーソナライズの精度は低下します。設定は端末の「設定 &gt; プライバシーとセキュリティ &gt; トラッキング」からいつでも変更できます。AdMob／Google によるデータの取り扱いは <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">Google 広告のしくみ</a>、広告のパーソナライズは <a href="https://adssettings.google.com/" target="_blank" rel="noopener">Google 広告設定</a> をご確認ください。</p>
+
+<h2>5. 第三者への提供・販売</h2>
+<p>当方は取得した情報を、本ポリシーに記載する目的（機能の提供・広告の表示）以外で第三者へ提供・販売しません。広告・クラウドに関わるデータの取り扱いは上記 Google／Firebase のポリシーに従います。</p>
+
+<h2>6. データの削除</h2>
+<p>端末内データは本アプリの削除で消去されます。共有グループの自分の記録・盤面はグループから退出すると削除されます。公開した機種メモは「自分の公開」からいつでも取り下げ（削除）できます。その他のデータ削除のご希望は下記までご連絡ください。</p>
+
+<h2>7. お子様の利用について</h2>
+<p>本アプリはパチスロの収支管理を目的とした17歳以上向けのアプリです。広告は Google のポリシーおよび App Store の年齢設定に従って配信されます。</p>
+
+<h2>8. 本ポリシーの変更</h2>
+<p>本ポリシーは、法令や本アプリの仕様変更に応じて改定されることがあります。重要な変更は本ページで告知します。</p>
+
+<h2>9. お問い合わせ</h2>
+<p>メール: <a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a></p>
+
+<footer>© 2026 ShareHistory</footer>
+</div>
+</body>
+</html>
