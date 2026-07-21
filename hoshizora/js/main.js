@@ -11,7 +11,7 @@ import { initSfx, resumeAudio, play, playWinJingle, playTaskDone, playFail, setS
 import { initLang, currentLang, switchLang, t, tt } from './i18n.js';
 import * as store from './storage.js';
 import { initAds, showInterstitial, showRewardAd, showBanner, hideBanner } from './ads.js';
-import { initIAP, buyRemoveAds, restorePurchases, iapAvailable } from './iap.js';
+import { initIAP, buyRemoveAds, restorePurchases, iapAvailable, removeAdsPrice } from './iap.js';
 import {
   connectRoom, disconnectRoom, sendStart, sendAct, sendEnd,
   makeRoomCode, seatsOnline,
@@ -179,7 +179,7 @@ function showTitle() {
           <button class="btn ghost" id="b-settings">${t('settings')}</button>
         </div>
       </div>
-      <div class="version">v0.1</div>
+      <div class="version">v${window.APP_VERSION || '1.0'}</div>
     </div>
   `, 'title-screen');
   s.querySelector('#b-start').onclick = () => { tap(); startMission((cont ? maxId + 1 : 1)); };
@@ -468,6 +468,11 @@ function tutorialMission() {
 }
 
 function startTutorial() {
+  // 設定からの再受講で進行中のオンライン部屋/タイマーが残っているとサーバイベントが
+  // 台本チュートリアルに割り込む（初回起動パスでは全て no-op）
+  if (roomCode) disconnectRoom();
+  roomCode = null; netQueue = []; awaitingEcho = false;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
   isTutorial = true; online = false; isDailyRun = false; mySeat = 0;
   humanSeats = new Set([0]);
   hintCard = null; lifted = null; animating = false; busy = false;
@@ -741,6 +746,7 @@ function renderLamp() {
 function onHintTap() {
   if (busy || !state || state.status !== 'playing') return;
   if (currentPlayer(state) !== mySeat) { toast(t('hintNotTurn')); play('back'); return; }
+  if (hintCard) return; // 今の手番のヒントを表示中: 二度押しでチケットを二重消費しない
   if (store.getHints() <= 0) { openHintOffer(); return; }
   store.consumeHint();
   computeAndShowHint();
@@ -831,7 +837,7 @@ function pumpNet() {
       try {
         playSignal(state, a.seat, a.card);
         play('lamp');
-        if (a.seat !== mySeat) toast(`${tt(CHARS[SEAT_CHAR[a.seat]].name)}のランプ: ${signalPhrase(a.seat, a.card)}`, SEAT_CHAR[a.seat]);
+        if (a.seat !== mySeat) toast(`${tt(CHARS[SEAT_CHAR[a.seat]].name)}${currentLang() === 'ja' ? 'のランプ: ' : '’s lamp: '}${signalPhrase(a.seat, a.card)}`, SEAT_CHAR[a.seat]);
       } catch (e) { /* レース負けのシグナルは全端末で同一に無視 */ }
       // 注意: シグナルのエコーで awaitingEcho（プレイ待ち）は解除しない
       renderAll();
@@ -879,7 +885,7 @@ function doAISignals() {
       if (card) {
         playSignal(state, q, card);
         play('lamp');
-        toast(`${tt(CHARS[SEAT_CHAR[q]].name)}のランプ: ${signalPhrase(q, card)}`, SEAT_CHAR[q]);
+        toast(`${tt(CHARS[SEAT_CHAR[q]].name)}${currentLang() === 'ja' ? 'のランプ: ' : '’s lamp: '}${signalPhrase(q, card)}`, SEAT_CHAR[q]);
       }
     }
   }
@@ -1119,13 +1125,15 @@ function endGame() {
     const now = Date.now();
     if (!store.isAdFree() && !isDailyRun && !online && typeof curMission.id === 'number' &&
       curMission.id > 5 && clearsThisSession % 2 === 0 && now - lastAdAt > 120000) {
-      setTimeout(async () => { if (await showInterstitial()) lastAdAt = Date.now(); }, 800);
+      const rid = runId;
+      setTimeout(async () => { if (rid !== runId) return; if (await showInterstitial()) lastAdAt = Date.now(); }, 800);
     }
   } else {
     if (!isDailyRun) failsThisMission++;
     showResult(false);
   }
-  if (online) sendEnd(); // ルームをロビーに戻す（全員が終局を検知している）
+  // 終局で即 sendEnd するとロビー再放送でリザルト画面が一瞬で消える（シェア/連続記録が読めない）。
+  // ロビーへ戻すのは「ロビーへ」ボタンを押したときだけにする（showResultのb-lobbyで sendEnd）。
 }
 
 function showResult(won) {
@@ -1186,7 +1194,7 @@ function showResult(won) {
     btns.appendChild(sb2);
     sb2.onclick = () => { tap(); doShare(won); };
   }
-  const lb = s.querySelector('#b-lobby'); if (lb) lb.onclick = () => { tap(); abandonGame(); online = false; showLobby(); };
+  const lb = s.querySelector('#b-lobby'); if (lb) lb.onclick = () => { tap(); sendEnd(); abandonGame(); online = false; showLobby(); };
   const nb = s.querySelector('#b-next'); if (nb) nb.onclick = () => { tap(); startMission(nextId); };
   const rb = s.querySelector('#b-retry'); if (rb) rb.onclick = () => { tap(); newDeal(); };
   const mb = s.querySelector('#b-map'); if (mb) mb.onclick = () => { tap(); showMap(); };
@@ -1239,7 +1247,17 @@ function showOnlineMenu() {
 
 function enterRoom(code) {
   roomCode = code;
+  const ja = currentLang() === 'ja';
+  setScreen(`<div class="lobby-body" style="justify-content:center;align-items:center;text-align:center;gap:14px">
+    <div class="emoji">🛰️</div>
+    <p class="intro">${ja ? '接続しています…' : 'Connecting…'}</p>
+  </div>`, 'connect-screen');
   connectRoom(code, {
+    onFailed: () => {
+      roomCode = null; online = false;
+      toast(ja ? 'ルームに接続できませんでした' : 'Could not connect to the room');
+      showOnlineMenu();
+    },
     onJoined: (seat) => { mySeat = seat; showLobby(); },
     onRoster: () => { if (document.getElementById('lobby-seats')) showLobby(); },
     onStart: (m) => startOnlineMission(m),
@@ -1248,7 +1266,12 @@ function enterRoom(code) {
       if (state && state.status === 'playing') { netQueue.push({ t: 'seatDrop', seat }); pumpKick(); }
       else if (document.getElementById('lobby-seats')) showLobby();
     },
-    onLobby: () => { if (!state || state.status !== 'playing') showLobby(); },
+    onLobby: () => {
+      // リザルト画面を見ている最中は横取りしない（本人が「ロビーへ」を押すまで残す）
+      const sc = app.querySelector('.screen');
+      if (sc && sc.classList.contains('result-screen')) return;
+      if (!state || state.status !== 'playing') showLobby();
+    },
     onFull: () => { toast(t('roomFull')); showTitle(); },
     onClosed: () => {
       // 自分の接続断: 残りをAIにしてオフライン続行
@@ -1257,7 +1280,12 @@ function enterRoom(code) {
         awaitingEcho = false; toast(t('connLost'));
         if (!animating && !aiTimer) step();
       } else {
+        // ロビー/接続待ちでの切断: 放置せずタイトルへ戻す
         roomCode = null; online = false;
+        const sc = app.querySelector('.screen');
+        if (sc && (sc.classList.contains('lobby-screen') || sc.classList.contains('connect-screen'))) {
+          toast(t('connLost')); showTitle();
+        }
       }
     },
   });
@@ -1279,7 +1307,10 @@ function showLobby() {
       <div class="ls-tag">${label}</div>
     </div>`;
   }).join('');
-  const isCaptain = mySeat === 0;
+  // 隊長＝着席中の最小席番号（席0が抜けてもホストが移譲され部屋が固まらない。worker.mjsと一致）
+  const occ = seats.map((o, i) => (o ? i : -1)).filter(i => i >= 0);
+  const captainSeat = occ.length ? Math.min(...occ) : 0;
+  const isCaptain = mySeat === captainSeat;
   const s = setScreen(`
     <div class="hdr"><button class="icon-btn" id="b-back">‹</button>
       <div class="title">🤝 ${t('online')}</div><span style="width:40px"></span></div>
@@ -1452,19 +1483,21 @@ function openPauseMenu() {
 
 function showSettings() {
   const ja = currentLang() === 'ja';
+  const pr = removeAdsPrice(); // StoreKitのローカライズ価格（無ければ null）
+  const noAdsLabel = ja ? `広告を消す${pr ? ' ' + pr : ''}（毎日ヒント+1特典つき）` : `Remove ads${pr ? ' ' + pr : ''}`;
   const s = setScreen(`
     <div class="hdr"><button class="icon-btn" id="b-back">‹</button><div class="title">${t('settings')}</div><span style="width:40px"></span></div>
     <div style="padding:16px;flex:1;overflow-y:auto">
       <div class="menu-list">
         <button id="s-se">${t('se')}<span class="toggle ${sfxEnabled() ? 'on' : ''}" id="tg-se"></span></button>
         <div class="menu-static">${t('lang')}<span class="seg"><span id="lg-ja" class="${currentLang() === 'ja' ? 'on' : ''}">日本語</span><span id="lg-en" class="${currentLang() === 'en' ? 'on' : ''}">EN</span></span></div>
-        ${iapAvailable() && !store.isAdFree() ? `<button id="s-noads">⭐ ${ja ? '広告を消す ¥500（毎日ヒント+1特典つき）' : 'Remove ads ¥500'}<span class="chev">›</span></button>` : ''}
+        ${iapAvailable() && !store.isAdFree() ? `<button id="s-noads">⭐ ${noAdsLabel}<span class="chev">›</span></button>` : ''}
         ${iapAvailable() ? `<button id="s-restore">${ja ? '購入を復元' : 'Restore purchases'}<span class="chev">›</span></button>` : ''}
         <button id="s-tut">${ja ? 'チュートリアルをもう一度' : 'Replay tutorial'}<span class="chev">›</span></button>
         <button id="s-howto">${t('howto')}<span class="chev">›</span></button>
         <button id="s-reset" class="danger">${ja ? '進行をリセット' : 'Reset progress'}<span class="chev">›</span></button>
       </div>
-      <div style="text-align:center;color:var(--c-ink-faint);font-size:11px;margin-top:20px">ほしぞら探検隊 v0.2</div>
+      <div style="text-align:center;color:var(--c-ink-faint);font-size:11px;margin-top:20px">ほしぞら探検隊 v${window.APP_VERSION || '1.0'}</div>
     </div>
   `, 'settings-screen');
   s.querySelector('#b-back').onclick = () => { back(); state ? showPlayOrTitle() : showTitle(); };
@@ -1596,7 +1629,7 @@ function liveWinner(plays) {
 
 function starBurst() { burstAtEl(document.getElementById('trick-slots')); }
 function starBurstAt(seat) {
-  const el = document.querySelector('.trick-slots .slot.p' + seat) || document.getElementById('trick-slots');
+  const el = document.querySelector('.trick-slots .slot.p' + posOf(seat)) || document.getElementById('trick-slots');
   burstAtEl(el, 8);
 }
 function burstAtEl(el, n = 6) {

@@ -47,3 +47,16 @@ export function restorePurchases() {
 }
 
 export function iapAvailable() { return isNative() && !!window.CdvPurchase; }
+
+// StoreKitが返すローカライズ価格（例 "¥500" / "$3.99"）。取得できなければ null。
+// 3.1.1: 表示価格は各ストアフロントの実請求額と一致させる（ハードコード禁止）。
+export function removeAdsPrice() {
+  const CP = window.CdvPurchase;
+  if (!CP || !isNative()) return null;
+  try {
+    const p = CP.store.get(PRODUCT_ID, CP.Platform.APPLE_APPSTORE);
+    const o = p && p.getOffer && p.getOffer();
+    const ph = o && o.pricingPhases && o.pricingPhases[0];
+    return (ph && ph.price) || null;
+  } catch (e) { return null; }
+}

@@ -435,6 +435,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 999px; padding: 7px 15px; box-shadow: var(--sh-card); }
 .tut-skip:active { transform: scale(.95); }
 
+/* AdMobバナー表示中の余白確保（バナーはWebViewをリサイズせず上端safe-areaに重なる）。
+   showBanner()が body.banner-on を付与。マップ画面ヘッダの戻るボタン等がバナーで隠れないよう下げる */
+.banner-on .hdr { margin-top: 56px; }
+.banner-on .result-screen { padding-top: 56px; }
+
+/* 強制アップデートゲート（update-gate.js が #updateGate/.ug-card を生成する。CSS未定義だと素通しになる） */
+#updateGate { position: fixed; inset: 0; z-index: 9999; background: rgba(30,41,71,.93);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px calc(24px + var(--safe-r)) calc(24px + var(--safe-b)) calc(24px + var(--safe-l)); }
+.ug-card { background: var(--c-surface); border-radius: 22px; padding: 30px 24px; max-width: 340px; width: 100%;
+  text-align: center; box-shadow: 0 18px 50px rgba(30,41,71,.42); }
+.ug-icon { font-size: 42px; margin-bottom: 6px; }
+.ug-card h2 { margin: 0 0 10px; font-size: 20px; color: var(--c-night); }
+.ug-card p { font-size: 14px; line-height: 1.75; color: var(--c-ink-sub); margin: 0 0 20px; }
+.ug-card .btn.big { width: 100%; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }

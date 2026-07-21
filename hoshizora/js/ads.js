@@ -28,6 +28,18 @@ function admobPlugin() {
 
 export function adsAvailable() { return isNative && !!AdMob && inited; }
 
+// UMP（Google User Messaging Platform）同意フロー。EEA/UKでは同意が必要。
+// 失敗しても広告初期化は続行（非致命）。地域外では NOT_REQUIRED で即抜け。
+async function gatherConsent() {
+  try {
+    if (!AdMob || !AdMob.requestConsentInfo) return;
+    const info = await AdMob.requestConsentInfo();
+    if (info && info.status === 'REQUIRED' && info.isConsentFormAvailable && AdMob.showConsentForm) {
+      await AdMob.showConsentForm();
+    }
+  } catch (e) {}
+}
+
 export async function initAds() {
   if (!isNative) return; // Webは広告なし（リワードのみモック）
   AdMob = admobPlugin();
@@ -40,7 +52,8 @@ export async function initAds() {
     window.removeEventListener('pointerdown', startAds, true);
     window.removeEventListener('touchend', startAds, true);
     Promise.resolve()
-      .then(() => (AdMob.requestTrackingAuthorization ? AdMob.requestTrackingAuthorization() : null))
+      .then(() => gatherConsent()) // UMP: EEA/UK の GDPR 同意（AdMob EUユーザー同意ポリシー必須）
+      .then(() => (AdMob.requestTrackingAuthorization ? AdMob.requestTrackingAuthorization() : null)) // ATT: IDFA
       .catch(() => {})
       .then(() => AdMob.initialize({ initializeForTesting: false, testingDevices: [] }))
       .then(() => { inited = true; prepareInterstitial(); prepareReward(); })
@@ -81,7 +94,11 @@ export async function showInterstitial() {
 }
 
 // ---- リワード ----
-let rewardCb = null;       // 現在の視聴に対するコールバック（1本だけ）
+// 完了は「イベント」で確定させる。native showRewardVideoAd の await はユーザーが報酬を
+// 獲得したときしか解決しない（早期に閉じると永久に未解決）ので、await に依存しない。
+let rewardCb = null;       // 報酬獲得時のコールバック（1本だけ）
+let rewardFail = null;     // 未獲得で閉じた/失敗時のコールバック
+let rewardEarned = false;  // この視聴で報酬を得たか
 let rewardListenerSet = false;
 
 async function prepareReward() {
@@ -93,11 +110,21 @@ function ensureRewardListener() {
   if (rewardListenerSet || !AdMob || !AdMob.addListener) return;
   rewardListenerSet = true;
   AdMob.addListener('onRewardedVideoAdReward', () => {
+    rewardEarned = true;
     const cb = rewardCb; rewardCb = null;
     cb && cb();
   });
+  // 閉じた/表示失敗（単発広告は消費済みなので必ず次を読み込み直す）
+  const done = () => {
+    rewardReady = false;
+    setTimeout(prepareReward, 800);
+    if (!rewardEarned) { const fb = rewardFail; rewardCb = null; rewardFail = null; fb && fb(); }
+    rewardEarned = false;
+  };
+  AdMob.addListener('onRewardedVideoAdDismissed', done);
+  AdMob.addListener('onRewardedVideoAdFailedToShow', done);
 }
-// 成功時 onReward() を呼ぶ。Webではモック（疑似視聴）で必ず成功。
+// 成功時 onReward() を1回だけ呼ぶ。閉じ/失敗時は onFail()。Webはモックで必ず成功。
 export function showRewardAd(onReward, onFail) {
   if (!isNative) {
     setTimeout(() => onReward && onReward(), 600);
@@ -107,10 +134,11 @@ export function showRewardAd(onReward, onFail) {
   (async () => {
     try {
       ensureRewardListener();
+      rewardEarned = false;
       rewardCb = onReward;
+      rewardFail = onFail;
       await AdMob.showRewardVideoAd();
-      rewardReady = false;
-      setTimeout(prepareReward, 1000);
-    } catch (e) { rewardCb = null; onFail && onFail(); }
+      // 完了/失敗の後処理は Reward/Dismissed/FailedToShow リスナーで確定させる
+    } catch (e) { rewardReady = false; setTimeout(prepareReward, 800); rewardCb = null; rewardFail = null; onFail && onFail(); }
   })();
 }

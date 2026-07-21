@@ -24,9 +24,14 @@ export function makeRoomCode() {
 export function connectRoom(code, h) {
   disconnectRoom();
   handlers = h || {};
-  const proto = location.protocol === 'https:' ? 'wss' : 'wss';
-  ws = new WebSocket(`${proto}://${SERVER}/room/${code}`);
-  ws.onopen = () => { alive = true; ws.send(JSON.stringify({ t: 'join' })); };
+  let settled = false; // onopen 到達（接続成功）or 失敗確定
+  ws = new WebSocket(`wss://${SERVER}/room/${code}`);
+  const connectTimeout = setTimeout(() => {
+    if (settled) return; settled = true;
+    try { if (ws) { ws.onclose = null; ws.close(); } } catch (e) {}
+    handlers.onFailed && handlers.onFailed('timeout');
+  }, 7000);
+  ws.onopen = () => { settled = true; clearTimeout(connectTimeout); alive = true; ws.send(JSON.stringify({ t: 'join' })); };
   ws.onmessage = ev => {
     let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     if (m.t === 'joined') { seat = m.seat; seats = m.seats; handlers.onJoined && handlers.onJoined(m.seat, m.seats); }
@@ -37,7 +42,12 @@ export function connectRoom(code, h) {
     else if (m.t === 'lobby') { seats = m.seats; handlers.onLobby && handlers.onLobby(m.seats); }
     else if (m.t === 'full') { handlers.onFull && handlers.onFull(m.reason); disconnectRoom(); }
   };
-  ws.onclose = () => { const was = alive; alive = false; seat = -1; if (was && handlers.onClosed) handlers.onClosed('closed'); };
+  ws.onclose = () => {
+    clearTimeout(connectTimeout);
+    const was = alive; alive = false; seat = -1;
+    if (was) { handlers.onClosed && handlers.onClosed('closed'); }
+    else if (!settled) { settled = true; handlers.onFailed && handlers.onFailed('closed'); } // 一度も開けず失敗
+  };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
 }
 
