@@ -2,7 +2,7 @@
 import {
   newGame, currentPlayer, legalCards, playCard, playSignal,
   canSignal, signalableCards, signalTag, makeView, parseCard, isComet,
-  SEAT_CHAR, CHAR_SEAT, TRICKS,
+  SEAT_CHAR, CHAR_SEAT, TRICKS, fullDeck,
 } from './engine.js';
 import { MISSIONS, AREAS, CHARS, SUIT_INFO, modifierText, missionById } from './missions.js';
 import { chooseCard, chooseSignal, optimizeAssignment } from './ai.js';
@@ -46,6 +46,11 @@ let lobbySel = 1;                  // ロビーのミッション選択
 let aiSigTrick = -1;               // AIシグナルを実行済みのトリック番号（決定論順の固定）
 let runId = 0;                     // ゲーム世代トークン（旧ゲームの残タイマー発火を無効化）
 let dailyFirstWin = false;         // 今日はじめてのデイリー勝利か（報酬の重複防止）
+// ---- インタラクティブ・チュートリアル ----
+let isTutorial = false;            // チュートリアル進行中か
+let tutorialResolveCb = null;      // 1手の演出完了後に呼ぶ継続（スクリプト駆動）
+let tutorialAwaitCard = null;      // プレイヤーがタップすべき札（それ以外は拒否）
+let tutorialAwaitNext = null;      // その札を出したあとの次ステップ
 
 // 座席→盤面スロット位置（自席が常に下になるよう回転）
 function posOf(seatIdx) { return (seatIdx - mySeat + 4) % 4; }
@@ -58,7 +63,12 @@ async function boot() {
   // ストアスクショ撮影用フック（?shot=title|play|map|lobby|result [&lang=en]）
   const q = new URLSearchParams(location.search);
   if (q.get('shot')) { shotMode(q.get('shot'), q.get('lang') || 'ja'); return; }
-  showTitle();
+  // 初回起動＝進行ゼロ かつ 未受講なら、実際にプレイさせるチュートリアルへ
+  if (q.get('tutorial') === '1' || (!store.getProgress().tutorialSeen && store.maxClearedId() === 0)) {
+    startTutorial();
+  } else {
+    showTitle();
+  }
   await initSfx();
   initAds();
   initIAP();
@@ -308,6 +318,7 @@ function showMissionSheet(id) {
 
 function startMission(id) {
   isDailyRun = false;
+  isTutorial = false;
   curMission = missionById(id);
   attemptSeed = (id * 100000 + Date.now() % 90000) >>> 0;
   failsThisMission = 0;
@@ -347,6 +358,7 @@ function dailyMission(key) {
 
 function startDaily() {
   isDailyRun = true;
+  isTutorial = false;
   curMission = dailyMission(todayKey());
   attemptSeed = hashStr('hz-daily-' + todayKey());
   store.setDaily(todayKey(), 'tried');
@@ -409,14 +421,183 @@ function showIntroAnim() {
   };
 }
 
+// ---- インタラクティブ・チュートリアル --------------------------------------
+// 実際に2トリックだけプレイさせて、手札・フォロー・おねがい・勝ち取りを体験で教える。
+// 固定配札を手で組み立て、AIの手はスクリプトで決め打ち（毎回まったく同じ流れ）。
+
+let tutorialSteps = [];
+let tutorialIndex = 0;
+
+function tutSort(a, b) {
+  const order = ['star', 'moon', 'cloud', 'wind', 'comet'];
+  const A = parseCard(a), B = parseCard(b);
+  if (A.suit !== B.suit) return order.indexOf(A.suit) - order.indexOf(B.suit);
+  return A.rank - B.rank;
+}
+
+function buildTutorialState() {
+  // 教える札を各席に固定配置（seat0=あなた／1=ミミ／2=ペン／3=コロ）
+  const place = {
+    0: ['star-9', 'moon-9'],   // おねがいの★9(最強星) と 勝ち札の月9(最強月)
+    1: ['moon-5', 'star-4'],   // ミミが先にリードする月5、第2トリックの星4
+    2: ['moon-3', 'star-2'],
+    3: ['moon-4', 'star-6'],
+  };
+  const used = new Set([].concat(place[0], place[1], place[2], place[3]));
+  const rest = fullDeck().filter(c => !used.has(c));
+  const moonsRest = rest.filter(c => c.startsWith('moon')); // seat0には月を増やさない（フォローを一意に）
+  const nonMoon = rest.filter(c => !c.startsWith('moon'));
+  const hands = [[], [], [], []];
+  for (let s = 0; s < 4; s++) hands[s].push(...place[s]);
+  while (hands[0].length < 10) hands[0].push(nonMoon.pop());
+  const remain = [...nonMoon, ...moonsRest];
+  let ri = 0;
+  for (let s = 1; s < 4; s++) while (hands[s].length < 10) hands[s].push(remain[ri++]);
+  hands.forEach(h => h.sort(tutSort));
+  const task = { card: 'star-9', owner: 0, order: null, last: false, done: false, doneAtTrick: -1 };
+  return {
+    seed: 0, mission: tutorialMission(), hands, commander: 1, tasks: [task],
+    signals: [null, null, null, null], leader: 1, trickNo: 0, currentTrick: [], history: [],
+    tricksWon: [0, 0, 0, 0], status: 'playing', failReason: null, doneCount: 0, modState: {},
+  };
+}
+
+function tutorialMission() {
+  return { id: 'tutorial', title: { ja: 'あそびかた', en: 'Tutorial' },
+    tasks: { count: 1, orderedCount: 0, lastTag: false, assign: 'sora' }, modifiers: [] };
+}
+
+function startTutorial() {
+  isTutorial = true; online = false; isDailyRun = false; mySeat = 0;
+  humanSeats = new Set([0]);
+  hintCard = null; lifted = null; animating = false; busy = false;
+  tutorialAwaitCard = null; tutorialAwaitNext = null; tutorialResolveCb = null;
+  runId++;
+  curMission = tutorialMission();
+  state = buildTutorialState();
+  showPlay();
+  renderAll();
+  // スキップ導線（右上）
+  const ja = currentLang() === 'ja';
+  document.getElementById('tut-skip')?.remove();
+  const sk = document.createElement('button');
+  sk.id = 'tut-skip'; sk.className = 'tut-skip'; sk.textContent = ja ? 'スキップ »' : 'Skip »';
+  sk.onclick = () => { tap(); skipTutorial(); };
+  document.body.appendChild(sk);
+
+  const P = c => `.hand .card[data-card="${c}"]`;
+  tutorialSteps = [
+    { say: ja ? 'こんばんは！ねこの<b>ソラ</b>だよ🐱 夜空をいっしょに旅する遊び方を、実際にやりながら覚えよう🎈'
+             : 'Hi! I’m <b>Sora</b> the cat 🐱 Let’s learn how to play by actually trying it 🎈' },
+    { say: ja ? '画面の下があなたの<b>手札</b>。<b>★星・🌙月・☁️雲・🍃風</b>の4色と、切り札の<b>☄️彗星</b>があるよ。'
+             : 'These are your <b>cards</b>: four suits (★🌙☁️🍃) plus the ☄️ comet trump.', target: '#hand' },
+    { say: ja ? '今回の<b>おねがい</b>はこれ →【<b>★9</b>】。この札を<b>あなたが</b>“トリック”で勝ち取ればクリアだよ！'
+             : 'Your <b>promise</b> is the <b>★9</b>. Win the trick that contains it and you clear the mission!', target: '.my-tasks' },
+    { ai: [{ seat: 1, card: 'moon-5' }], say: ja ? 'まずは隊長の<b>ミミ</b>が🌙月を出すよ。「すすむ」を押して見てみよう。' : 'First, leader <b>Mimi</b> will play a 🌙 moon. Tap Next to watch.' },
+    { say: ja ? '最初に出た色（<b>リード</b>）は🌙月。同じ色を持っていたら、<b>必ずその色</b>を出すのが決まりだよ。'
+             : 'The led suit is 🌙 moon. If you have that suit, you <b>must</b> follow it.', target: '.lead-bar' },
+    { ai: [{ seat: 2, card: 'moon-3' }, { seat: 3, card: 'moon-4' }], say: ja ? '<b>ペン</b>と<b>コロ</b>も月を出すよ。次はあなたの番！' : '<b>Pen</b> and <b>Koro</b> follow with moons. You’re next!' },
+    { act: 'moon-9', say: ja ? 'あなたの番！ 月でいちばん強い【<b>月9</b>】を<b>タップ</b>して出そう。' : 'Your turn! Tap your strongest moon, the <b>moon 9</b>.', target: P('moon-9') },
+    { say: ja ? '勝った！🎉 いちばん強い札を出した人がトリックを勝ち取るよ。勝った人が<b>次に出す番</b>になるんだ。'
+             : 'You won! 🎉 The strongest card takes the trick — and that winner leads next.' },
+    { act: 'star-9', say: ja ? 'いよいよ本命！ おねがいの【<b>★9</b>】は最強の星。これを出して<b>勝ち取ろう</b>！' : 'Now the big one! Lead your <b>★9</b> to capture the promise.', target: P('star-9') },
+    { ai: [{ seat: 1, card: 'star-4' }, { seat: 2, card: 'star-2' }, { seat: 3, card: 'star-6' }], say: ja ? 'みんなも星でついてくるよ。あなたの★9はいちばん強い…！' : 'Everyone follows with stars. Your ★9 is the strongest…!' },
+    { win: true, say: ja ? 'やったー！ おねがいの【★9】を勝ち取ったよ🌟 これで基本はバッチリ！<br>本番では<b>💡シグナルランプ</b>で仲間に1回だけ合図もできるんだ。さっそく<b>第1夜</b>へ出発しよう！'
+                       : 'You did it! You captured the ★9 🌟 In real missions you can also hint your crew with the 💡 signal lamp. Let’s set off on Night 1!' },
+  ];
+  runCoach(0);
+}
+
+function tutorialContinue() {
+  const cb = tutorialResolveCb; tutorialResolveCb = null;
+  if (cb) cb();
+}
+
+function runCoach(i) {
+  tutorialIndex = i;
+  if (i >= tutorialSteps.length) { finishTutorial(); return; }
+  const st = tutorialSteps[i];
+  clearCoachGlow();
+  if (st.win) {
+    store.setTutorialSeen();
+    playWinJingle(); starRain();
+    showCoachBubble(st.say, null, { next: () => { clearCoach(); isTutorial = false; startMission(1); }, nextLabel: currentLang() === 'ja' ? '第1夜へ出発 ▶' : 'To Night 1 ▶' });
+    return;
+  }
+  if (st.act) {
+    // プレイヤーに札を出させる
+    tutorialAwaitCard = st.act;
+    tutorialAwaitNext = () => runCoach(i + 1);
+    renderAll();
+    showCoachBubble(st.say, null, { glowOnly: true });
+    return;
+  }
+  if (st.ai) {
+    tutorialAwaitCard = null; renderAll();
+    showCoachBubble(st.say, st.target, { next: () => { clearCoachBubble(); playAiSequence(st.ai, () => runCoach(i + 1)); } });
+    return;
+  }
+  // say のみ
+  tutorialAwaitCard = null; renderAll();
+  showCoachBubble(st.say, st.target, { next: () => runCoach(i + 1) });
+}
+
+function playAiSequence(plays, done) {
+  let k = 0;
+  const nextPlay = () => {
+    if (k >= plays.length) { done(); return; }
+    const { seat, card } = plays[k++];
+    tutorialResolveCb = nextPlay;
+    commitPlay(seat, card);
+  };
+  nextPlay();
+}
+
+function skipTutorial() {
+  store.setTutorialSeen();
+  clearCoach();
+  isTutorial = false; runId++;
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+  state = null;
+  showTitle();
+}
+
+function finishTutorial() {
+  store.setTutorialSeen();
+  clearCoach();
+  isTutorial = false;
+  startMission(1);
+}
+
+// ---- コーチマーク（吹き出し＋ハイライト） -----------------------------------
+
+function showCoachBubble(text, targetSel, opts = {}) {
+  clearCoachBubble(); clearCoachGlow();
+  if (targetSel) document.querySelectorAll(targetSel).forEach(el => el.classList.add('coach-glow'));
+  const ja = currentLang() === 'ja';
+  const showNext = opts.next && !opts.glowOnly;
+  const nextBtn = showNext ? `<button class="btn primary coach-next" id="coach-next">${opts.nextLabel || (ja ? '▶ すすむ' : '▶ Next')}</button>` : '';
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<div class="coach-bubble" id="coach-bubble">
+    <div class="coach-av">${charImg('sora')}</div>
+    <div class="coach-text">${text}</div>
+    ${nextBtn}
+  </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  if (showNext) document.getElementById('coach-next').onclick = () => { tap(); opts.next(); };
+}
+function clearCoachBubble() { document.getElementById('coach-bubble')?.remove(); }
+function clearCoachGlow() { document.querySelectorAll('.coach-glow').forEach(e => e.classList.remove('coach-glow')); }
+function clearCoach() { clearCoachBubble(); clearCoachGlow(); document.getElementById('tut-skip')?.remove(); }
+
 // ---- プレイ画面 -------------------------------------------------------------
 
 function showPlay() {
   setScreen(`
     <div class="hdr">
-      <button class="icon-btn" id="b-menu">≡</button>
-      <div class="title">${isDailyRun ? '☀️ ' + t('daily') : (currentLang() === 'ja' ? '第' + curMission.id + '夜' : 'Night ' + curMission.id)}</div>
-      <span class="progress-pill" id="trick-count"></span>
+      <button class="icon-btn" id="b-menu"${isTutorial ? ' style="visibility:hidden"' : ''}>≡</button>
+      <div class="title">${isTutorial ? (currentLang() === 'ja' ? 'あそびかた（練習）' : 'Tutorial') : (isDailyRun ? '☀️ ' + t('daily') : (currentLang() === 'ja' ? '第' + curMission.id + '夜' : 'Night ' + curMission.id))}</div>
+      <span class="progress-pill" id="trick-count"${isTutorial ? ' style="visibility:hidden"' : ''}></span>
     </div>
     <div class="crew-row" id="crew-row"></div>
     <div class="board">
@@ -512,9 +693,9 @@ function renderHand() {
   const legal = currentPlayer(state) === mySeat ? legalCards(state, mySeat) : [];
   const myTurn = currentPlayer(state) === mySeat && state.status === 'playing' && !busy;
   hand.innerHTML = state.hands[mySeat].map(c => {
-    const playable = myTurn && legal.includes(c);
-    const dim = myTurn && !legal.includes(c);
-    const hinted = myTurn && hintCard === c;
+    const playable = isTutorial ? (c === tutorialAwaitCard) : (myTurn && legal.includes(c));
+    const dim = isTutorial ? (!!tutorialAwaitCard && c !== tutorialAwaitCard) : (myTurn && !legal.includes(c));
+    const hinted = isTutorial ? (c === tutorialAwaitCard) : (myTurn && hintCard === c);
     return `<div class="${cardCls(c)} ${playable ? 'playable' : ''} ${dim ? 'dim' : ''} ${lifted === c ? 'lifted' : ''} ${hinted ? 'hinted' : ''}" data-card="${c}">${cardInner(c)}</div>`;
   }).join('');
   hand.querySelectorAll('.card').forEach(el => { el.onclick = () => onHandTap(el.dataset.card); });
@@ -532,6 +713,14 @@ function renderMyTasks() {
 function renderLamp() {
   const fab = document.getElementById('lamp-fab');
   if (!fab) return;
+  if (isTutorial) {
+    // チュートリアルはランプ／ヒントを隠して、いま教えることに集中させる
+    fab.style.display = 'none';
+    const hf = document.getElementById('hint-fab');
+    if (hf) hf.style.display = 'none';
+    return;
+  }
+  fab.style.display = '';
   const used = state.signals[mySeat] != null;
   const avail = canSignal(state, mySeat) && signalableCards(state, mySeat).length > 0 && !busy;
   fab.className = 'lamp-fab' + (used ? ' used' : (avail ? '' : ' disabled'));
@@ -716,6 +905,22 @@ function aiTurn(p) {
 
 function onHandTap(card) {
   if (busy || currentPlayer(state) !== mySeat || state.status !== 'playing') return;
+  if (isTutorial) {
+    if (!tutorialAwaitCard) return; // 説明中はプレイ不可
+    if (card !== tutorialAwaitCard) {
+      const el = document.querySelector(`.hand .card[data-card="${card}"]`);
+      if (el) { el.classList.add('shake'); setTimeout(() => el.classList.remove('shake'), 300); }
+      toast(currentLang() === 'ja' ? '光っている札をタップしてね' : 'Tap the glowing card');
+      play('back'); return;
+    }
+    lifted = null;
+    tutorialAwaitCard = null;
+    const nx = tutorialAwaitNext; tutorialAwaitNext = null;
+    tutorialResolveCb = nx;
+    clearCoachBubble(); clearCoachGlow();
+    commitPlay(mySeat, card);
+    return;
+  }
   const legal = legalCards(state, mySeat);
   if (!legal.includes(card)) {
     // 出せない理由
@@ -753,7 +958,12 @@ function commitPlay(p, card) {
     const rec = state.history[state.history.length - 1];
     setTimeout(() => { if (rid !== runId) return; animateTrickResolve(rec); }, 340);
   } else {
-    setTimeout(() => { if (rid !== runId) return; animating = false; busy = false; step(); }, 300);
+    setTimeout(() => {
+      if (rid !== runId) return;
+      animating = false; busy = false;
+      if (isTutorial) { tutorialContinue(); return; }
+      step();
+    }, 300);
   }
 }
 
@@ -773,9 +983,9 @@ function animateTrickResolve(rec) {
   const rid = runId;
   const doneNow = rec ? state.tasks.filter(tk => tk.done && tk.doneAtTrick === rec.trickNo) : [];
   if (state.status === 'lost') {
-    // 失敗トリック: 少し見せてから、やさしくリザルトへ
+    // 失敗トリック: 少し見せてから、やさしくリザルトへ（チュートリアルでは失敗しない）
     highlightWinner(rec.winner);
-    setTimeout(() => { if (rid !== runId) return; playFail(); animating = false; endGame(); }, 900);
+    setTimeout(() => { if (rid !== runId) return; playFail(); animating = false; if (!isTutorial) endGame(); }, 900);
     return;
   }
   highlightWinner(rec.winner);
@@ -788,8 +998,9 @@ function animateTrickResolve(rec) {
       if (rid !== runId || !state) return;
       renderAll();
       animating = false;
-      if (state.status !== 'playing') { endGame(); return; }
       busy = false;
+      if (isTutorial) { tutorialContinue(); return; }
+      if (state.status !== 'playing') { endGame(); return; }
       step();
     });
   }, doneNow.length ? 620 : 460);
@@ -1112,6 +1323,7 @@ function seatsNow() {
 
 function startOnlineMission(m) {
   isDailyRun = false;
+  isTutorial = false;
   online = true;
   humanSeats = new Set(m.humanSeats);
   netQueue = [];
@@ -1248,6 +1460,7 @@ function showSettings() {
         <div class="menu-static">${t('lang')}<span class="seg"><span id="lg-ja" class="${currentLang() === 'ja' ? 'on' : ''}">日本語</span><span id="lg-en" class="${currentLang() === 'en' ? 'on' : ''}">EN</span></span></div>
         ${iapAvailable() && !store.isAdFree() ? `<button id="s-noads">⭐ ${ja ? '広告を消す ¥500（毎日ヒント+1特典つき）' : 'Remove ads ¥500'}<span class="chev">›</span></button>` : ''}
         ${iapAvailable() ? `<button id="s-restore">${ja ? '購入を復元' : 'Restore purchases'}<span class="chev">›</span></button>` : ''}
+        <button id="s-tut">${ja ? 'チュートリアルをもう一度' : 'Replay tutorial'}<span class="chev">›</span></button>
         <button id="s-howto">${t('howto')}<span class="chev">›</span></button>
         <button id="s-reset" class="danger">${ja ? '進行をリセット' : 'Reset progress'}<span class="chev">›</span></button>
       </div>
@@ -1266,6 +1479,7 @@ function showSettings() {
   if (na) na.onclick = () => { tap(); buyRemoveAds(() => toast(currentLang() === 'ja' ? 'この端末では購入できません' : 'Purchases unavailable')); };
   const rs2 = s.querySelector('#s-restore');
   if (rs2) rs2.onclick = () => { tap(); restorePurchases(); toast(currentLang() === 'ja' ? '購入を確認しています…' : 'Restoring…'); };
+  s.querySelector('#s-tut').onclick = () => { tap(); startTutorial(); };
   s.querySelector('#s-howto').onclick = () => { tap(); showHowto(!!state); };
   s.querySelector('#s-reset').onclick = () => { tap(); confirmReset(); };
 }
