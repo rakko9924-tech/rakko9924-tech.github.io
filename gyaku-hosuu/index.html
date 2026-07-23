@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>逆歩数計 — 歩かないと、たまる。</title>
+<meta name="description" content="歩数を数えるのではなく、歩かなかった分が「逆歩数」として溜まっていく歩数計。1日のノルマを決めて、達成できなかった分を可視化します。">
+<style>
+  :root{ --ink:#3d3730; --soft:#8a8178; --accent:#ff7a45; --bg:#fdf7f2; }
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    margin:0; color:var(--ink); background:linear-gradient(160deg,#fdf7f2,#fff1e6); }
+  .wrap{ max-width:720px; margin:0 auto; padding:56px 24px 80px; text-align:center; }
+  .mark img{ width:104px; height:auto; }
+  h1{ font-size:30px; margin:14px 0 6px; }
+  .tag{ color:var(--soft); font-size:16px; margin:0 0 28px; }
+  .card{ background:#fff; border-radius:18px; padding:24px; box-shadow:0 8px 24px rgba(180,140,110,.14); text-align:left; margin:18px 0; }
+  .card h2{ font-size:18px; margin:0 0 10px; }
+  ul{ margin:0; padding-left:1.2em; line-height:1.9; color:#4a443c; }
+  a{ color:var(--accent); }
+  footer{ color:var(--soft); font-size:13px; margin-top:32px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark"><img src="./mascot.png" alt=""></div>
+    <h1>逆歩数計</h1>
+    <p class="tag">歩数を数えるのではなく、歩かなかった分が溜まっていく歩数計</p>
+
+    <div class="card">
+      <h2>特長</h2>
+      <ul>
+        <li>1日のノルマ歩数と、その消費カロリーの目安を最初に決める</li>
+        <li>達成できなかった分は<b>「逆歩数」</b>としてどんどん溜まっていく</li>
+        <li>歩数はiPhoneの歩数センサーで<b>自動計測</b>（アプリを開きっぱなしにしなくてOK）</li>
+        <li>達成した日／溜まってしまった日に、ひとことコメントでお知らせ</li>
+        <li>歩いた歩数のグラフ（7日・14日・30日）と通算データ</li>
+        <li>溜まった逆歩数は、<b>広告を見ると0にリセット</b>できる</li>
+        <li>未達の日に知らせてくれるリマインダー通知</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>ご注意</h2>
+      <ul>
+        <li>消費カロリーは歩数と体重からの<b>概算</b>で、医学的な測定値ではありません。健康上の判断は専門家にご相談ください。</li>
+        <li>歩数の自動計測には「モーションとフィットネス」の許可が必要です。</li>
+      </ul>
+    </div>
+
+    <p><a href="./privacy-policy.html">プライバシーポリシー / Privacy Policy</a></p>
+    <footer>お問い合わせ： <a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a></footer>
+  </div>
+</body>
+</html>
