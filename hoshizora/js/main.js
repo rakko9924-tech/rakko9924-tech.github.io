@@ -60,6 +60,10 @@ function posOf(seatIdx) { return (seatIdx - mySeat + 4) % 4; }
 async function boot() {
   initLang();
   buildStars();
+  // Web版だけタイトルにApp Store導線が増えるので、その分だけキービジュアルを詰める
+  if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
+    document.documentElement.classList.add('web-build');
+  }
   // ストアスクショ撮影用フック（?shot=title|play|map|lobby|result [&lang=en]）
   const q = new URLSearchParams(location.search);
   if (q.get('shot')) { shotMode(q.get('shot'), q.get('lang') || 'ja'); return; }
@@ -156,6 +160,15 @@ function setScreen(html, cls = '') {
 
 // ---- タイトル ---------------------------------------------------------------
 
+// Web版だけに出すApp Store導線（ネイティブ／スクショ撮影中は出さない）
+function storeCtaHtml() {
+  const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (native || !window.APP_STORE_ID) return '';
+  const ja = currentLang() === 'ja';
+  return `<a class="store-cta" href="https://apps.apple.com/app/id${window.APP_STORE_ID}" target="_blank" rel="noopener">`
+    + (ja ? 'App Storeで無料ダウンロード' : 'Download free on the App Store') + '</a>';
+}
+
 function showTitle() {
   const maxId = store.maxClearedId();
   const cont = maxId > 0 && maxId < 50;
@@ -179,6 +192,7 @@ function showTitle() {
           <button class="btn ghost" id="b-settings">${t('settings')}</button>
         </div>
       </div>
+      ${storeCtaHtml()}
       <div class="version">v${window.APP_VERSION || '1.0'}</div>
     </div>
   `, 'title-screen');
@@ -1391,7 +1405,10 @@ function leaveRoomToTitle() {
 
 // ---- シェア（ゼロコストの成長装置。Wordle型の絵文字グリッド） ----------------
 
-const SHARE_URL = 'https://rakko9924-tech.github.io/hoshizora/';
+// シェア先はApp Storeのプロダクトページ（Web版に流すと無料フル版へ誘導してしまう）
+const SHARE_URL = window.APP_STORE_ID
+  ? `https://apps.apple.com/app/id${window.APP_STORE_ID}`
+  : 'https://rakko9924-tech.github.io/hoshizora/';
 
 function shareText(won) {
   const ja = currentLang() === 'ja';

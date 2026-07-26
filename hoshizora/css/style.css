@@ -137,7 +137,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .btn.primary { background: var(--c-night); color: #fff; border-color: var(--c-night); box-shadow: var(--sh-panel); }
 .btn.ghost { border-color: var(--c-line); color: var(--c-ink-sub); font-size: 14px; }
 .btn.small { padding: 9px 16px; font-size: 14px; }
-.version { position: absolute; bottom: calc(10px + var(--safe-b)); font-size: 11px; color: var(--c-ink-faint); }
+.version { margin-top: auto; padding-top: 10px; font-size: 11px; color: var(--c-ink-faint); }
+/* Web版だけのApp Store導線（ネイティブでは出さない。flow配置なのでボタン列と重ならない） */
+.store-cta { margin-top: 16px; font-size: 13px; font-weight: 700; white-space: nowrap;
+  color: var(--c-night); background: var(--c-surface); border: 1.5px solid var(--c-night);
+  border-radius: var(--r-pill); padding: 9px 18px; text-decoration: none; box-shadow: var(--sh-panel); }
+.store-cta:active { transform: scale(.96); }
+html.web-build .title-art { height: 40vh; min-height: 240px; }
+html.web-build.shot-mode .title-art { height: 47vh; min-height: 300px; }
 
 /* ---- 共通ヘッダー ---- */
 .hdr { display: flex; align-items: center; gap: 10px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
@@ -458,3 +465,5 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ストアスクショ撮影モード（headless Chromeの最小ウィンドウ幅500px対策） */
 html.shot-mode #app { width: 414px; height: 896px; position: fixed; left: 0; top: 0; }
 html.shot-mode #toast { display: none !important; }
+/* ストア用スクショに版数やWeb導線を焼き込まない（v0.1が混入した事故の再発防止） */
+html.shot-mode .version, html.shot-mode .store-cta { display: none !important; }
