@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>バブルメーター — ポーカートーナメントのICM・バブルファクター計算</title>
+<meta name="description" content="ポーカートーナメントの残り人数と賞金配分から、残り率・ICM期待値・バブルファクター・必要勝率を計算するツール。テーブル全員のスタックを入れた厳密計算にも対応。">
+<style>
+  :root{ --ink:#15201A; --soft:#5d6b63; --accent:#007145; --soft-bg:#D5F0E0; --paper:#FBFCFA; }
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    margin:0; color:var(--ink); background:linear-gradient(160deg,#FBFCFA,#EAF6EF); }
+  .wrap{ max-width:720px; margin:0 auto; padding:56px 24px 80px; text-align:center; }
+  h1{ font-size:30px; margin:14px 0 6px; }
+  .tag{ color:var(--soft); font-size:16px; margin:0 0 28px; }
+  .card{ background:#fff; border:1px solid #dfe8e3; border-radius:18px; padding:24px; text-align:left; margin:18px 0; }
+  .card h2{ font-size:18px; margin:0 0 10px; color:var(--accent); }
+  ul{ margin:0; padding-left:1.2em; line-height:1.9; color:#3c4a43; }
+  a{ color:var(--accent); }
+  .note{ font-size:14px; color:var(--soft); line-height:1.8; }
+  footer{ color:var(--soft); font-size:13px; margin-top:32px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>バブルメーター</h1>
+    <p class="tag">トーナメントの「残り」と「今の一手の重さ」を、数字にする。</p>
+
+    <div class="card">
+      <h2>できること</h2>
+      <ul>
+        <li><b>残り率（LEFT%）</b>：エントリー数・インマネ人数・残り人数から、フィールドがどこまで削られたかを表示。入賞ラインまであと何人かも一目で分かります。</li>
+        <li><b>バブルファクター</b>：オールインで負けて失う期待値 ÷ 勝って得る期待値。今の局面でどれだけ慎重になるべきかが数字で出ます。</li>
+        <li><b>必要勝率</b>：チップ的に五分の相手へのコールが損益分岐になる勝率。</li>
+        <li><b>厳密計算</b>：ICM（Malmuth-Harville）で計算。テーブル全員のスタックを入れれば、相手ごとのバブルファクターを一覧できます。</li>
+        <li><b>賞金構造の分析</b>：参加費・アドオン・その他費用から還元率を算出し、収支をプラスにするのに必要なROIと、その水準の目安を表示。</li>
+        <li>通貨は円・ドル・ユーロに対応。入力は自動保存。</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>このアプリについて</h2>
+      <p class="note">計算と学習のためのツールです。実際の金銭を賭ける機能、プレイ可能なカジノゲーム、換金要素は一切含みません。表示される数値は入力条件にもとづく推定であり、結果を保証するものではありません。</p>
+    </div>
+
+    <div class="card">
+      <h2>サポート・お問い合わせ</h2>
+      <p class="note">ご意見・不具合のご報告は、アプリ内の左上メニュー「問い合わせ」からお送りいただけます。メールでも受け付けています：<a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a></p>
+      <p class="note"><a href="privacy-policy.html">プライバシーポリシー</a> ／ <a href="https://rakkoapps.com/">らっこアプリ 一覧</a></p>
+    </div>
+
+    <footer>© 2026 らっこアプリ</footer>
+  </div>
+</body>
+</html>
