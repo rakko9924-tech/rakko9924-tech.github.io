@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>フラッシュ神経衰弱 — 順番なし。ふたり同時にめくり合う</title>
+<meta name="description" content="ターン制を捨てた、リアルタイムのトランプ神経衰弱。2人が同時にめくり合い、15ペアを取り合う2人専用のオンライン対戦。勝てばレートが上がり、世界ランキングに載ります。">
+<style>
+  :root{ --bg:#0b2a1d; --panel:#0f3527; --line:rgba(226,202,143,.22); --gold:#d9b871; --ink:#f2ece0; --dim:#9db3a4; }
+  *{ box-sizing:border-box; }
+  body{ font-family:"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif; margin:0; color:var(--ink);
+    background:radial-gradient(120% 80% at 50% 20%, #14523a 0%, var(--bg) 70%); }
+  .wrap{ max-width:720px; margin:0 auto; padding:52px 24px 80px; text-align:center; }
+  h1{ font-size:34px; margin:14px 0 6px; font-family:Georgia,"Hiragino Mincho ProN",serif; color:var(--gold); }
+  .tag{ color:var(--dim); font-size:15px; margin:0 0 10px; }
+  .suits{ font-size:22px; color:var(--gold); letter-spacing:.5em; padding-left:.5em; margin:18px 0 26px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:left; margin:18px 0; }
+  .card h2{ font-size:16px; margin:0 0 10px; color:var(--gold); letter-spacing:.14em; }
+  ul,ol{ margin:0; padding-left:1.3em; line-height:2; }
+  b{ color:var(--gold); font-weight:700; }
+  a{ color:var(--gold); }
+  footer{ color:var(--dim); font-size:13px; margin-top:32px; line-height:2; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>フラッシュ神経衰弱</h1>
+    <p class="tag">順番なし。ふたり同時に、めくり合う。</p>
+    <div class="suits">&#9824;&#65039;&#8203;&#9829;&#8203;&#9830;&#8203;&#9827;</div>
+
+    <div class="card">
+      <h2>どんなゲーム？</h2>
+      <ol>
+        <li>トランプ30枚（15ペア）を、<b>2人が同時に</b>めくり合います。順番はありません</li>
+        <li>数字が同じならペア。取ったカードは場から消えます</li>
+        <li><b>めくった面は相手にも見えます</b>。自分の探索は相手へのヒントにもなります</li>
+        <li>外すと<b>しばらく動けなくなり</b>、連続で外すほど硬直は長くなります（最大1.3秒）</li>
+        <li>多く取った方の勝ち。15ペアなので<b>引き分けはありません</b></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>ランクと世界ランキング</h2>
+      <ul>
+        <li>ランク戦は勝敗でレートが増減します（Elo方式・ゼロサム）</li>
+        <li>ブロンズ → シルバー → ゴールド → プラチナ → ダイヤ → マスター → グランドマスター。各3段</li>
+        <li>世界ランキングに順位が載ります。合言葉で友達と遊ぶときはレートは動きません</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>遊ぶには</h2>
+      <ul>
+        <li>2人専用のオンライン対戦です（1人プレイ・CPU戦はありません）</li>
+        <li>「ランク戦」を押すと自動で相手が見つかります</li>
+        <li>友達と遊ぶときは「合言葉」を作って4文字を伝えてください</li>
+      </ul>
+    </div>
+
+    <footer>
+      <a href="./privacy-policy.html">プライバシーポリシー</a> ／
+      <a href="https://rakkoapps.com/">らっこアプリ</a><br>
+      お問い合わせ：<a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a><br>
+      &copy; 2026 RAITO SASAGAWA
+    </footer>
+  </div>
+</body>
+</html>
