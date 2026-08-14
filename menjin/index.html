@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>麺神アリーナ — 箸で麺を振り回す3D物理対戦</title>
+<meta name="description" content="箸で麺の束をつかんで振り回し、相手の麺にぶつける3D物理の対戦ゲーム。麺41種と箸18種を集めて、長さ・重さ・しなりの組み合わせで戦う。ひとりで大会、オンライン対戦、世界ランキング。無料。">
+<style>
+  :root{ --ink:#1b1a18; --soft:#8a837b; --accent:#b5701f; --deep:#8d550f; --paper:#fffdf8; }
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    margin:0; color:var(--ink); background:linear-gradient(165deg,#fdf8ee,#f2ece0); }
+  .wrap{ max-width:720px; margin:0 auto; padding:56px 24px 80px; text-align:center; }
+  h1{ font-size:34px; margin:14px 0 6px; letter-spacing:.1em; }
+  h1 span{ color:var(--accent); }
+  .tag{ color:var(--soft); font-size:16px; margin:0 0 30px; line-height:1.8; }
+  .card{ background:var(--paper); border:1px solid #eae2d4; border-radius:18px; padding:24px;
+    box-shadow:0 8px 26px rgba(120,85,30,.10); text-align:left; margin:18px 0; }
+  .card h2{ font-size:18px; margin:0 0 12px; color:var(--deep); }
+  ul{ margin:0; padding-left:1.2em; line-height:1.95; color:#3f3a33; }
+  a{ color:var(--accent); }
+  table{ width:100%; border-collapse:collapse; font-size:14px; margin-top:6px; }
+  th,td{ text-align:left; padding:6px 4px; border-bottom:1px solid #efe8db; }
+  th{ color:var(--soft); font-weight:600; }
+  .rates td:last-child, .rates th:last-child{ text-align:right; font-variant-numeric:tabular-nums; }
+  footer{ color:var(--soft); font-size:13px; margin-top:36px; line-height:2; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span>麺神</span>アリーナ</h1>
+    <p class="tag">箸で麺の束をつかんで振り回し、相手の麺にぶつける。<br>3D物理の1対1対戦。</p>
+
+    <div class="card">
+      <h2>どんなゲーム？</h2>
+      <ul>
+        <li>画面を<b>ドラッグして箸を動かす</b>だけ。麺は物理で遅れてついてくるので、<b>大きく振ってから戻す</b>と先端が加速します</li>
+        <li>ダメージは<b>当たった瞬間の速さ・麺の重さ・攻撃力</b>で決まります。麺の<b>先の方</b>が当たるとよく伸びます</li>
+        <li>ゲージが満ちたら<b>「締め」</b>。数秒だけ麺が硬く重くなり、攻撃力が2倍になります</li>
+        <li>1試合は最長60秒。ふつうは15〜25秒で決着します</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>麺41種 × 箸18種</h2>
+      <ul>
+        <li>麺の<b>長さ・重さ・しなり・太さ</b>は、そのまま物理演算に入ります。見た目だけの違いではありません</li>
+        <li>そうめんは細く長くよくしなり、極太つけ麺は短く重い一撃。乾麺の束はまったくしならず狙った線を貫き、すいとんはもはや塊です</li>
+        <li>箸は<b>振る側の性能</b>。振りの速さ・握り（麺の追従）・締めのたまり・守りが変わります</li>
+        <li>実際に戦う数値は<b>麺 × 箸</b>。組み合わせを探すのがこのゲームの中心です</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>遊びかた</h2>
+      <ul>
+        <li><b>ひとりで大会</b> — 屋台の部から麺神杯まで、5階級18人のCPU。通信は不要です</li>
+        <li><b>オンライン対戦</b> — ランクマッチ（レートと世界ランキングあり）と、合言葉で友だちと（レートは動きません）</li>
+        <li>段位は 湯切り → 麺打ち → 一番弟子 → 店主 → 麺匠 → 名人 → <b>麺神</b></li>
+        <li>チャットや自由入力はありません。よび名はアプリ内の組み合わせから自動で決まります</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>ガチャの提供割合</h2>
+      <p style="margin:0 0 8px;color:#3f3a33;font-size:14px;">アプリ内のガチャ画面にも同じ内容を表示しています。同じものが出たときは、レアリティに応じたコインに交換されます。</p>
+      <table class="rates">
+        <tr><th>レアリティ</th><th>麺ガチャ</th><th>箸ガチャ</th></tr>
+        <tr><td>UR</td><td>1.5%</td><td>2.0%</td></tr>
+        <tr><td>SR</td><td>8.5%</td><td>9.0%</td></tr>
+        <tr><td>R</td><td>30.0%</td><td>31.0%</td></tr>
+        <tr><td>N</td><td>60.0%</td><td>58.0%</td></tr>
+      </table>
+      <p style="margin:10px 0 0;color:var(--soft);font-size:13px;">十連はR以上が1つ確定します。コインは対戦の報酬でも貯まります。</p>
+    </div>
+
+    <div class="card">
+      <h2>料金</h2>
+      <ul>
+        <li>アプリ本体は<b>無料</b>です。広告が表示されます</li>
+        <li>アプリ内課金：<b>広告を消す</b>（買い切り）と、<b>麺コイン</b>（ガチャに使えるコイン）</li>
+        <li>コインは対戦・動画広告でも手に入ります。購入しなくてもすべての麺と箸を集められます</li>
+      </ul>
+    </div>
+
+    <footer>
+      <a href="./privacy-policy.html">プライバシーポリシー</a>　／
+      <a href="https://rakkoapps.com/">らっこアプリ 一覧</a><br>
+      お問い合わせ：<a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a><br>
+      開発：らっこアプリ（佐々川 来斗）
+    </footer>
+  </div>
+</body>
+</html>
