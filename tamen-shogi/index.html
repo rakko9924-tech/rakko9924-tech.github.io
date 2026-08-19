@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多面将棋 — 最大4局を同時に指す</title>
+<meta name="description" content="1局ずつ待つのをやめた将棋アプリ。最大4局を同時に持ち、手番の来た盤から指していきます。レート・段級位・世界ランキングつきのオンライン対戦と、6段階のCPU戦。">
+<style>
+  :root{ --bg:#131010; --panel:#1c1815; --line:rgba(226,190,124,.20); --gold:#d9b871; --ink:#f2ece0; --dim:#a99a86; --wood:#e8bd7c; }
+  *{ box-sizing:border-box; }
+  body{ font-family:"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif; margin:0; color:var(--ink);
+    background:radial-gradient(120% 80% at 50% 12%, #2a211a 0%, var(--bg) 70%); }
+  .wrap{ max-width:720px; margin:0 auto; padding:52px 24px 80px; text-align:center; }
+  h1{ font-size:34px; margin:14px 0 6px; font-family:"Hiragino Mincho ProN",Georgia,serif; color:var(--gold); }
+  .tag{ color:var(--dim); font-size:15px; margin:0 0 10px; }
+  .koma{ display:flex; gap:8px; justify-content:center; margin:22px 0 26px; }
+  .koma span{ display:inline-block; width:34px; height:38px; line-height:38px; font-family:"Hiragino Mincho ProN",serif;
+    font-size:19px; color:#2a1a0c; background:linear-gradient(180deg,#f7e3bb,#e8c98d);
+    clip-path:polygon(50% 0,68% 16%,92% 100%,8% 100%,32% 16%); }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:left; margin:18px 0; }
+  .card h2{ font-size:16px; margin:0 0 10px; color:var(--gold); letter-spacing:.14em; }
+  ul,ol{ margin:0; padding-left:1.3em; line-height:2; }
+  b{ color:var(--gold); font-weight:700; }
+  a{ color:var(--gold); }
+  footer{ color:var(--dim); font-size:13px; margin-top:32px; line-height:2; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>多面将棋</h1>
+    <p class="tag">1局ずつ待つのを、やめる。</p>
+    <div class="koma"><span>歩</span><span>桂</span><span>角</span><span>飛</span></div>
+
+    <div class="card">
+      <h2>多面指しという遊び方</h2>
+      <ol>
+        <li>同時に持てる対局は <b>2面 / 3面 / 4面</b> から選べます</li>
+        <li>画面に出る盤は常に1つ。上の卓ドックで<b>自分の手番の盤が金色に光ります</b></li>
+        <li>自分が指した直後に、<b>次に指せる盤へ自動で切り替わります</b></li>
+        <li>1面だけ選べば、ふつうの一局の将棋としても遊べます</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>持ち時間（多面のためのルール）</h2>
+      <ul>
+        <li>減るのは<b>いま見ている盤の時計だけ</b>。ほかの盤を考えているあいだ、その盤の時計は止まります</li>
+        <li>ただし<b>45秒以上待たせている盤があると、その盤の時計も動き出します</b></li>
+        <li>だから多面にしても消費する時間は増えず、相手を待たせ続けることもできません</li>
+        <li>ランクマッチは <b>持ち時間3分＋1手5秒加算</b>、使い切ったあとに猶予30秒×3回</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>3つのオンラインと、ひとり用</h2>
+      <ul>
+        <li><b>ランクマッチ</b>：レートが動きます。世界ランキングに載ります</li>
+        <li><b>ランダムマッチ</b>：レートは動きません。気軽に1局</li>
+        <li><b>合言葉マッチ</b>：友だちと1対1。合言葉は相手には表示されません</li>
+        <li><b>CPU戦</b>：強さ6段階。持ち時間なしでじっくり。待ったも使えます</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>段級位と世界ランキング</h2>
+      <ul>
+        <li>15級から九段まで。レート（Elo方式・ゼロサム）で自動的に上がり下がりします</li>
+        <li>ランキングは<b>レートだけ</b>で決まります。課金や対局数では上がりません</li>
+        <li>二歩・打ち歩詰め・千日手・連続王手の千日手・入玉宣言法（27点法）まで実装しています</li>
+      </ul>
+    </div>
+
+    <footer>
+      <a href="./privacy-policy.html">プライバシーポリシー</a> ／
+      <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">利用規約（EULA）</a> ／
+      <a href="https://rakkoapps.com/">らっこアプリ</a><br>
+      お問い合わせ：<a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a><br>
+      &copy; 2026 RAITO SASAGAWA
+    </footer>
+  </div>
+</body>
+</html>
