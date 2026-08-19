@@ -6,22 +6,23 @@
 <title>多面将棋 — 最大4局を同時に指す</title>
 <meta name="description" content="1局ずつ待つのをやめた将棋アプリ。最大4局を同時に持ち、手番の来た盤から指していきます。レート・段級位・世界ランキングつきのオンライン対戦と、6段階のCPU戦。">
 <style>
-  :root{ --bg:#131010; --panel:#1c1815; --line:rgba(226,190,124,.20); --gold:#d9b871; --ink:#f2ece0; --dim:#a99a86; --wood:#e8bd7c; }
+  :root{ --bg:#f1ebdf; --panel:#fffdf8; --line:#ded2bb; --gold:#a97f21; --ai:#1f4e87; --ink:#23201b; --dim:#5c554a; --wood:#eccb92; }
   *{ box-sizing:border-box; }
   body{ font-family:"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif; margin:0; color:var(--ink);
-    background:radial-gradient(120% 80% at 50% 12%, #2a211a 0%, var(--bg) 70%); }
+    background:radial-gradient(130% 80% at 50% 0%, #f7f2e7 0%, var(--bg) 60%, #e6ddcc 100%); }
   .wrap{ max-width:720px; margin:0 auto; padding:52px 24px 80px; text-align:center; }
-  h1{ font-size:34px; margin:14px 0 6px; font-family:"Hiragino Mincho ProN",Georgia,serif; color:var(--gold); }
+  h1{ font-size:34px; margin:14px 0 6px; font-family:"Hiragino Mincho ProN",Georgia,serif; color:var(--ink); }
   .tag{ color:var(--dim); font-size:15px; margin:0 0 10px; }
   .koma{ display:flex; gap:8px; justify-content:center; margin:22px 0 26px; }
   .koma span{ display:inline-block; width:34px; height:38px; line-height:38px; font-family:"Hiragino Mincho ProN",serif;
-    font-size:19px; color:#2a1a0c; background:linear-gradient(180deg,#f7e3bb,#e8c98d);
+    font-size:19px; color:#2a1a0c; background:linear-gradient(180deg,#f7e3bb,#e8c98d); box-shadow:0 2px 4px rgba(92,58,20,.28);
     clip-path:polygon(50% 0,68% 16%,92% 100%,8% 100%,32% 16%); }
-  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:left; margin:18px 0; }
-  .card h2{ font-size:16px; margin:0 0 10px; color:var(--gold); letter-spacing:.14em; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:left; margin:18px 0;
+    box-shadow:0 1px 3px rgba(90,70,40,.06); }
+  .card h2{ font-size:16px; margin:0 0 10px; color:var(--ai); letter-spacing:.14em; }
   ul,ol{ margin:0; padding-left:1.3em; line-height:2; }
-  b{ color:var(--gold); font-weight:700; }
-  a{ color:var(--gold); }
+  b{ color:#8a6410; font-weight:700; }
+  a{ color:var(--ai); }
   footer{ color:var(--dim); font-size:13px; margin-top:32px; line-height:2; }
 </style>
 </head>
