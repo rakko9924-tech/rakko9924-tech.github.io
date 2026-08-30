@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ナラベル｜分割ブラウザ — 最大4画面を同時にひらく</title>
+<meta name="description" content="Webページを最大4つ同時にひらけるブラウザ。仕切りをドラッグして大きさを変えられ、縦と横の組み合わせも自由。2画面までは無料、4分割は買い切りでアンロック。">
+<style>
+  :root{ --bg:#eef0f5; --panel:#fff; --line:#dfe3ec; --accent:#2b50e0; --ink:#1c2333; --dim:#69738c; }
+  *{ box-sizing:border-box; }
+  body{ font-family:"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif; margin:0; color:var(--ink);
+    background:radial-gradient(120% 70% at 50% 0%, #f7f9ff 0%, var(--bg) 60%, #e4e8f1 100%); }
+  .wrap{ max-width:720px; margin:0 auto; padding:52px 24px 80px; text-align:center; }
+  h1{ font-size:32px; margin:14px 0 6px; letter-spacing:.02em; }
+  .tag{ color:var(--dim); font-size:15px; margin:0 0 22px; }
+  .demo{ display:grid; grid-template-columns:1fr 1fr; grid-template-rows:56px 56px; gap:7px; width:190px; margin:0 auto 30px; }
+  .demo i{ background:var(--panel); border:1.5px solid var(--accent); border-radius:9px; display:block; }
+  .demo i:nth-child(1){ grid-row:1 / span 2; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:left; margin:18px 0;
+    box-shadow:0 1px 3px rgba(40,50,80,.06); }
+  .card h2{ font-size:16px; margin:0 0 10px; color:var(--accent); letter-spacing:.14em; }
+  ul,ol{ margin:0; padding-left:1.3em; line-height:2; }
+  b{ color:var(--accent); font-weight:700; }
+  a{ color:var(--accent); }
+  footer{ color:var(--dim); font-size:13px; margin-top:32px; line-height:2; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ナラベル｜分割ブラウザ</h1>
+    <p class="tag">見比べるために、行ったり来たりしない。</p>
+    <div class="demo"><i></i><i></i><i></i></div>
+
+    <div class="card">
+      <h2>ならべて見る</h2>
+      <ul>
+        <li>Webページを<b>最大4つ同時に</b>ひらけます</li>
+        <li>仕切りを<b>ドラッグ</b>して、それぞれの大きさを自由に変えられます</li>
+        <li>仕切りを<b>長押し</b>すると縦と横が入れ替わります。<b>ダブルタップ</b>で半分ずつに戻ります</li>
+        <li>左右2分割・上下2分割・横3分割・左1右2・田の字4分割など、レイアウトは11種類から選べます</li>
+        <li>ページはそれぞれ独立して動きます。片方を読みながら、もう片方で調べものができます</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>ふつうのブラウザとしても</h2>
+      <ul>
+        <li>ブックマーク／ホーム（スタート画面のショートカット）／履歴。並べ替えと名前の変更もできます</li>
+        <li>共有・印刷・ページ内検索・ダウンロード・文字サイズ・パソコン向け表示</li>
+        <li>検索エンジンは Google / Yahoo! JAPAN / Bing / DuckDuckGo から選べます</li>
+        <li><b>画面ごとのプライベート</b>。その画面だけ履歴もCookieも残しません</li>
+        <li>リンクの長押しから「別の画面で開く」。並べて比べる操作がそのまま続きます</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>料金</h2>
+      <ul>
+        <li><b>2画面までは無料</b>。左右でも上下でも、大きさの変更もそのまま使えます</li>
+        <li><b>3〜4画面は買い切り</b>でアンロック。自動更新はありません</li>
+        <li>広告は表示しません。画面の広さがこのアプリの価値だからです</li>
+      </ul>
+    </div>
+
+    <footer>
+      <a href="./privacy-policy.html">プライバシーポリシー</a> ／
+      <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">利用規約（EULA）</a> ／
+      <a href="https://rakkoapps.com/">らっこアプリ</a><br>
+      お問い合わせ：<a href="mailto:rakko9924@gmail.com">rakko9924@gmail.com</a><br>
+      &copy; 2026 RAITO SASAGAWA
+    </footer>
+  </div>
+</body>
+</html>
